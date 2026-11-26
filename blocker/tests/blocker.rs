@@ -165,3 +165,13 @@ fn bench_url() {
     }
     eprintln!("bench {} : {:?} per check", url, t.elapsed() / 200);
 }
+
+#[test]
+fn frame_requests_are_subdocuments() {
+    const FRAME: &str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+    assert_eq!(request_type("https://ads.example.net/slot?id=3", FRAME), "subdocument");
+    let b = Blocker::new();
+    assert!(b.load(&compile(&["||adframes.example.net^$subdocument"])));
+    assert!(b.should_block("https://adframes.example.net/slot", PAGE, FRAME));
+    assert!(!b.should_block("https://adframes.example.net/a.js", PAGE, "*/*"));
+}

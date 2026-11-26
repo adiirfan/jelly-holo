@@ -96,6 +96,9 @@ pub static BLOCKER: Blocker = Blocker::new();
 /// WebView doesn't say, so the Accept header goes first, then the extension.
 pub fn request_type(url: &str, accept: &str) -> &'static str {
     let accept = accept.to_ascii_lowercase();
+    if accept.starts_with("text/html") {
+        return "subdocument";
+    }
     if accept.starts_with("text/css") {
         return "stylesheet";
     }
