@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Shfletuesi</string>
     <string name="url_bar_more">Më shumë</string>
     <string name="url_bar_search_cancel">Anulo kërkimin</string>
     <string name="url_bar_search_clear">Pastro kërkimin</string>

@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">浏览器</string>
     <string name="url_bar_more">更多</string>
     <string name="url_bar_search_cancel">取消搜索</string>
     <string name="url_bar_search_clear">清空搜索内容</string>

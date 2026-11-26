@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Navigateur</string>
     <string name="url_bar_more">Plus</string>
     <string name="url_bar_search_cancel">Annuler la recherche</string>
     <string name="url_bar_search_clear">Effacer la recherche</string>

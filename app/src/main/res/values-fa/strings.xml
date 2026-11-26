@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">مرورگر</string>
     <string name="url_bar_more">بیشتر</string>
     <string name="url_bar_search_cancel">لغو جستجو</string>
     <string name="url_bar_search_clear">پاک کردن جستجو</string>

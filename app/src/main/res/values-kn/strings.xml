@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">ಬ್ರೌಸರ್</string>
     <string name="menu_fav_add">ಮೆಚ್ಚಿನವುಗಳಿಗೆ ಸೇರಿಸು</string>
     <string name="menu_share">ಹಂಚು</string>
     <string name="menu_history">ಇತಿಹಾಸ</string>

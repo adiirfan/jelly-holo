@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Vafri</string>
     <string name="menu_new_tab">Nýr flipi</string>
     <string name="menu_incognito">Huliðsflipi</string>
     <string name="menu_fav_add">Bæta í eftirlæti</string>

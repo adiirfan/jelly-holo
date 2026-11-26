@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">உலாவி</string>
     <string name="url_bar_more">மேலும்</string>
     <string name="url_bar_search_cancel">தேடலை விலக்கு</string>
     <string name="url_bar_search_clear">தேடலை அழி</string>

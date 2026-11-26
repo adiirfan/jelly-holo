@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Browser</string>
     <string name="menu_new_tab">Nij ljepblêd</string>
     <string name="menu_incognito">Priveeljepblêd</string>
     <string name="menu_fav_add">Oan blêdwizers Tafoegje</string>

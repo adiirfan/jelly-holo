@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Brabhsálaí</string>
     <string name="url_bar_more">Tuilleadh</string>
     <string name="url_bar_search_cancel">Cealaigh an cuardach</string>
     <string name="url_bar_search_clear">Glan cuardach</string>

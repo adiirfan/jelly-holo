@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Браузер</string>
     <string name="url_bar_more">Еще</string>
     <string name="url_bar_search_cancel">Отменить поиск</string>
     <string name="url_bar_search_clear">Очистить поиск</string>

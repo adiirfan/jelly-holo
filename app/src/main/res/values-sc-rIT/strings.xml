@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Navigadore</string>
     <string name="url_bar_more">Àteru</string>
     <string name="url_bar_search_cancel">Annulla sa chirca</string>
     <string name="url_bar_search_clear">Cantzella sa chirca</string>

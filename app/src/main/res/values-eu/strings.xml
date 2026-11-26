@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Nabigatzailea</string>
     <string name="menu_new_tab">Fitxa berria</string>
     <string name="menu_incognito">Fitxa pribatua</string>
     <string name="menu_fav_add">Gehitu gogokoetara</string>

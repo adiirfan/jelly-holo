@@ -19,7 +19,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "org.lineageos.jelly"
+        applicationId = "dev.jellyholo.browser"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Netlæser</string>
     <string name="url_bar_more">Mere</string>
     <string name="url_bar_search_cancel">Annullér søgning</string>
     <string name="url_bar_search_clear">Ryd søgning</string>

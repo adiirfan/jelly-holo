@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Nettleser</string>
     <string name="menu_new_tab">Ny fane</string>
     <string name="menu_incognito">Inkognito-fane</string>
     <string name="menu_fav_add">Legg til som favoritt</string>

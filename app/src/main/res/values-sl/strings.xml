@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Brskalnik</string>
     <string name="url_bar_more">Več</string>
     <string name="url_bar_search_cancel">Prekliči iskanje</string>
     <string name="url_bar_search_clear">Počisti iskanje</string>

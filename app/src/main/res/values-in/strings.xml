@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Browser</string>
     <string name="url_bar_more">Lainnya</string>
     <string name="url_bar_search_cancel">Batalkan pencarian</string>
     <string name="url_bar_search_clear">Hapus pencarian</string>

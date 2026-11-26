@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Preglednik</string>
     <string name="menu_new_tab">Nova kartica</string>
     <string name="menu_incognito">Anonimna kartica</string>
     <string name="menu_fav_add">Dodaj u favorite</string>

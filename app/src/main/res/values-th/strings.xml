@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">เบราว์เซอร์</string>
     <string name="menu_new_tab">แท็บใหม่</string>
     <string name="menu_incognito">แท็บใหม่ที่ไม่ระบุตัวตน</string>
     <string name="menu_fav_add">เพิ่มไปยังรายการโปรด</string>

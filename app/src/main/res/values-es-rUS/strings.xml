@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Navegador</string>
     <string name="menu_new_tab">Nueva pestaña</string>
     <string name="menu_incognito">Pestaña de incógnito</string>
     <string name="menu_fav_add">Añadir a Favoritos</string>

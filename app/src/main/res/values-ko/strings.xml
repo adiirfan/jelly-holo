@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">브라우저</string>
     <string name="url_bar_more">더 보기</string>
     <string name="url_bar_search_cancel">검색 취소</string>
     <string name="url_bar_search_clear">검색 창 지우기</string>

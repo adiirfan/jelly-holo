@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">Brabhsair</string>
     <string name="menu_new_tab">Taba ùr</string>
     <string name="menu_incognito">Taba incognito</string>
     <string name="menu_fav_add">Cuir ris na h-annsachdan</string>

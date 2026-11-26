@@ -4,7 +4,6 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <resources>
-    <string name="app_name">وێبگەڕ</string>
     <string name="url_bar_more">زیاتر</string>
     <string name="url_bar_search_cancel">پاشگەزبوونەوە لە گەڕان</string>
     <string name="url_bar_search_clear">پاککردنەوەی گەڕان</string>
