@@ -126,10 +126,12 @@ class UrlBarLayout @JvmOverloads constructor(
     var onStartSearchCallback: ((query: String) -> Unit)? = null
     var onSearchPositionChangeCallback: ((next: Boolean) -> Unit)? = null
     var onClearSearchCallback: (() -> Unit)? = null
+    var onReloadCallback: (() -> Unit)? = null
 
     // Dialogs
     private val sslCertificateInfoDialog by lazy {
         SslCertificateInfoDialog(context).apply {
+            onAllowAdsChanged = { onReloadCallback?.invoke() }
             create()
         }
     }

@@ -85,11 +85,18 @@ object AdBlock {
                     { done(true, "") },
                     {
                         Log.w(TAG, "list update failed", it)
-                        done(false, it.message ?: it.javaClass.simpleName)
+                        done(false, reason(it))
                     },
                 )
             }
         }
+    }
+
+    private fun reason(e: Throwable): String = when (e) {
+        is java.net.UnknownHostException, is java.net.ConnectException,
+        is java.net.NoRouteToHostException -> "no internet connection"
+        is java.net.SocketTimeoutException -> "the list server didn't answer in time"
+        else -> e.message ?: e.javaClass.simpleName
     }
 
     private fun download(url: String): String {

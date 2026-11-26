@@ -11,10 +11,12 @@ import android.net.http.SslCertificate
 import android.net.http.SslError
 import android.os.Bundle
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.TextView
 import androidx.annotation.UiContext
 import androidx.appcompat.app.AlertDialog
 import org.lineageos.jelly.R
+import org.lineageos.jelly.utils.SharedPreferencesExt
 import java.text.DateFormat
 
 class SslCertificateInfoDialog(
@@ -31,6 +33,12 @@ class SslCertificateInfoDialog(
     private val issuedOnView by lazy { findViewById<KeyValueView>(R.id.issuedOnView)!! }
     private val expiresOnView by lazy { findViewById<KeyValueView>(R.id.expiresOnView)!! }
     private val dismissButton by lazy { findViewById<Button>(R.id.dismissButton)!! }
+    private val allowAdsCheckBox by lazy { findViewById<CheckBox>(R.id.allowAdsCheckBox)!! }
+
+    private val sharedPreferencesExt by lazy { SharedPreferencesExt(context) }
+
+    /** Called after "Allow ads on this site" changes, so the page can reload. */
+    var onAllowAdsChanged: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,6 +59,17 @@ class SslCertificateInfoDialog(
         // Get the validity dates
         val startDate = certificate.validNotBeforeDate
         val endDate = certificate.validNotAfterDate
+
+        // Ad blocking for this site
+        allowAdsCheckBox.setOnCheckedChangeListener(null)
+        allowAdsCheckBox.isChecked = domain in sharedPreferencesExt.adBlockAllowedHosts
+        allowAdsCheckBox.isEnabled = domain != null
+        allowAdsCheckBox.setOnCheckedChangeListener { _, allow ->
+            domain ?: return@setOnCheckedChangeListener
+            val hosts = sharedPreferencesExt.adBlockAllowedHosts
+            sharedPreferencesExt.adBlockAllowedHosts = if (allow) hosts + domain else hosts - domain
+            onAllowAdsChanged?.invoke()
+        }
 
         // Update TextViews
         domainView.text = domain

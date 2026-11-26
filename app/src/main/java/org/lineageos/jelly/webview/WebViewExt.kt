@@ -183,6 +183,7 @@ class WebViewExt @JvmOverloads constructor(
         urlBarLayout.onLoadUrlCallback = { loadUrl(it) }
         urlBarLayout.onStartSearchCallback = { findAllAsync(it) }
         urlBarLayout.onClearSearchCallback = { clearMatches() }
+        urlBarLayout.onReloadCallback = { reload() }
         urlBarLayout.onSearchPositionChangeCallback = { findNext(it) }
         setup(urlBarLayout)
         setWebViewDesktopMode(desktopMode)

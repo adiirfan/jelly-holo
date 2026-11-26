@@ -24,7 +24,10 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreference
 import com.google.android.material.checkbox.MaterialCheckBox
+import org.lineageos.jelly.adblock.AdBlock
 import org.lineageos.jelly.utils.SharedPreferencesExt
+import java.text.DateFormat
+import java.util.Date
 import kotlin.reflect.safeCast
 
 class SettingsActivity : AppCompatActivity() {
@@ -82,6 +85,7 @@ class SettingsActivity : AppCompatActivity() {
                     preferenceScreen.removePreference(it)
                 }
             }
+            findPreference<Preference>("key_adblock_update")?.summary = adBlockUpdateSummary()
             findPreference<SwitchPreference>("key_web_debugging")?.onPreferenceChangeListener =
                 Preference.OnPreferenceChangeListener { _, newValue ->
                     WebView.setWebContentsDebuggingEnabled(newValue as Boolean)
@@ -107,6 +111,11 @@ class SettingsActivity : AppCompatActivity() {
             return when (preference.key) {
                 "key_home_page" -> {
                     editHomePage(preference)
+                    true
+                }
+
+                "key_adblock_update" -> {
+                    updateBlockLists(preference)
                     true
                 }
 
@@ -167,6 +176,37 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
+        }
+
+        private var updating = false
+
+        private fun updateBlockLists(preference: Preference) {
+            if (updating) return
+            updating = true
+            preference.summary = getString(R.string.pref_adblock_update_running)
+            AdBlock.update(requireContext()) { ok, message ->
+                updating = false
+                if (ok) sharedPreferencesExt.adBlockListsUpdated = System.currentTimeMillis()
+                if (!isAdded) return@update
+                preference.summary = if (ok) {
+                    adBlockUpdateSummary()
+                } else {
+                    getString(R.string.pref_adblock_update_failed, message)
+                }
+            }
+        }
+
+        private fun adBlockUpdateSummary(): String {
+            val updated = sharedPreferencesExt.adBlockListsUpdated
+            return if (updated == 0L) {
+                getString(R.string.pref_adblock_update_bundled)
+            } else {
+                getString(
+                    R.string.pref_adblock_update_date,
+                    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+                        .format(Date(updated))
+                )
+            }
         }
 
         private fun homePagePrefSummary() =

@@ -58,6 +58,23 @@
 
     <PreferenceCategory
         app:iconSpaceReserved="false"
+        app:title="@string/pref_adblock_category">
+
+        <SwitchPreference
+            app:defaultValue="true"
+            app:iconSpaceReserved="false"
+            app:key="key_adblock_enabled"
+            app:summary="@string/pref_adblock_summary"
+            app:title="@string/pref_adblock_title" />
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="key_adblock_update"
+            app:title="@string/pref_adblock_update_title" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
         app:title="@string/pref_privacy_security">
 
         <SwitchPreference

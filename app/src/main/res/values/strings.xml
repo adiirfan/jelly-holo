@@ -256,4 +256,16 @@
 
     <!-- Media session -->
     <string name="media_session_destroy_action">Stop</string>
+
+    <!-- Jelly Holo: ad blocking -->
+    <string name="pref_adblock_category">Ad blocking</string>
+    <string name="pref_adblock_title">Block ads and trackers</string>
+    <string name="pref_adblock_summary">Pages load faster and use less data. Uses EasyList and EasyPrivacy.</string>
+    <string name="pref_adblock_update_title">Update block lists</string>
+    <string name="pref_adblock_update_bundled">Using the lists that came with the app. Tap to download the latest.</string>
+    <string name="pref_adblock_update_date">Updated %1$s. Tap to check again.</string>
+    <string name="pref_adblock_update_running">Downloading the latest lists…</string>
+    <string name="pref_adblock_update_failed">Couldn\'t update: %1$s. Still using the old lists.</string>
+    <string name="adblock_allow_site">Allow ads on this site</string>
+    <string name="adblock_blocked_count">Ads blocked: %1$d</string>
 </resources>
