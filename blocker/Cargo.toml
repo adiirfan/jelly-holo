@@ -1,0 +1,20 @@
+[package]
+name = "jellyblock"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Ad and tracker blocking for Jelly Holo, on adblock-rust"
+
+[lib]
+name = "jellyblock"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+adblock = { version = "0.13.6", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
+jni = "0.21"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "unwind"
+strip = true
