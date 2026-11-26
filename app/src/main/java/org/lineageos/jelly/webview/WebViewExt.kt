@@ -7,6 +7,8 @@ package org.lineageos.jelly.webview
 
 import android.content.Context
 import androidx.core.content.ContextCompat
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import android.graphics.Bitmap
@@ -63,6 +65,16 @@ class WebViewExt @JvmOverloads constructor(
     val checkCpuNanos = AtomicLong()
 
     fun blockedOnPage(): Int = blockedCount.get()
+
+    /**
+     * Let Android repaint web pages dark. It only takes effect while the app
+     * itself is dark (the Black look); in the light look pages stay as they are.
+     */
+    fun applyDarkPages(enabled: Boolean) {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, enabled)
+        }
+    }
 
     override fun loadUrl(url: String) {
         lastLoadedUrl = url
@@ -189,6 +201,7 @@ class WebViewExt @JvmOverloads constructor(
         setup(urlBarLayout)
         // Black (or white) before the page paints: no white flash in the Black look
         setBackgroundColor(ContextCompat.getColor(context, R.color.holo_page_background))
+        applyDarkPages(sharedPreferencesExt.darkPages)
         setWebViewDesktopMode(desktopMode)
         initialized = true
     }

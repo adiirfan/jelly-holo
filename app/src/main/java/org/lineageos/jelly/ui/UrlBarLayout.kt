@@ -6,6 +6,10 @@
 package org.lineageos.jelly.ui
 
 import android.annotation.SuppressLint
+import androidx.core.content.ContextCompat
+import android.text.style.ForegroundColorSpan
+import android.text.Spanned
+import android.text.SpannableString
 import android.content.Context
 import android.net.http.SslCertificate
 import android.net.http.SslError
@@ -39,7 +43,7 @@ class UrlBarLayout @JvmOverloads constructor(
     context: Context, attrs: AttributeSet?, defStyleAttr: Int = 0
 ) : ConstraintLayout(context, attrs, defStyleAttr) {
     // Views
-    private val autoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.autoCompleteTextView) }
+    private val autoCompleteTextView by lazy { findViewById<AutoCompleteTextViewExt>(R.id.autoCompleteTextView) }
     private val incognitoIcon by lazy { findViewById<ImageButton>(R.id.incognitoIcon) }
     private val loadingProgressIndicator by lazy { findViewById<LinearProgressIndicator>(R.id.loadingProgressIndicator) }
     private val moreButton by lazy { findViewById<ImageButton>(R.id.moreButton)!! }
@@ -50,6 +54,8 @@ class UrlBarLayout @JvmOverloads constructor(
     private val searchPreviousButton by lazy { findViewById<ImageButton>(R.id.searchPreviousButton) }
     private val searchResultCountTextView by lazy { findViewById<TextView>(R.id.searchResultCountTextView) }
     private val secureButton by lazy { findViewById<ImageButton>(R.id.secureButton) }
+    private val tabsButton by lazy { findViewById<View>(R.id.tabsButton) }
+    private val tabCountText by lazy { findViewById<TextView>(R.id.tabCountText) }
     private val urlBarLayoutGroupSearch by lazy { findViewById<Group>(R.id.urlBarLayoutGroupSearch) }
     private val urlBarLayoutGroupUrl by lazy { findViewById<Group>(R.id.urlBarLayoutGroupUrl) }
 
@@ -94,9 +100,42 @@ class UrlBarLayout @JvmOverloads constructor(
         set(value) {
             field = value
 
-            autoCompleteTextView.setText(value)
+            if (autoCompleteTextView.hasFocus()) {
+                autoCompleteTextView.setText(value, false)
+            } else {
+                autoCompleteTextView.setText(displayUrl(value), false)
+            }
             secureButton.isVisible = value?.startsWith("https://") == true
         }
+
+    /** Number of open tabs, shown in the square counter. */
+    var tabCount: Int = 1
+        set(value) {
+            field = value
+            tabCountText.text = if (value > 99) "∞" else value.coerceAtLeast(1).toString()
+            tabsButton.contentDescription =
+                resources.getQuantityString(R.plurals.tabs_open, value, value)
+        }
+
+    var onTabsClick: (() -> Unit)? = null
+
+    /** The address as early Chrome showed it: no scheme, the site dark, the rest grey. */
+    private fun displayUrl(value: String?): CharSequence? {
+        value ?: return null
+        val noScheme = value.removePrefix("https://").removePrefix("http://")
+        if (noScheme.length == value.length) return value
+        val hostEnd = noScheme.indexOfAny(charArrayOf('/', '?', '#')).let {
+            if (it < 0) noScheme.length else it
+        }
+        return SpannableString(noScheme).apply {
+            if (hostEnd < noScheme.length) {
+                setSpan(
+                    ForegroundColorSpan(ContextCompat.getColor(context, R.color.holo_text_secondary)),
+                    hostEnd, noScheme.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+        }
+    }
 
     private var certificate: SslCertificate? = null
     private var sslError: SslError? = null
@@ -151,6 +190,7 @@ class UrlBarLayout @JvmOverloads constructor(
 
     init {
         inflate(context, R.layout.url_bar_layout, this)
+        autoCompleteTextView.fadeColor = ContextCompat.getColor(context, R.color.holo_omnibox)
         viewTreeObserver.addOnGlobalLayoutListener(keyboardListener)
     }
 
@@ -203,6 +243,7 @@ class UrlBarLayout @JvmOverloads constructor(
         }
 
         moreButton.setOnClickListener { onMoreButtonClickCallback?.invoke() }
+        tabsButton.setOnClickListener { onTabsClick?.invoke() }
 
         // Set secure button callback
         secureButton.setOnClickListener {
@@ -274,6 +315,11 @@ class UrlBarLayout @JvmOverloads constructor(
     }
 
     private fun onFocusChange(view: View, hasFocus: Boolean) {
+        if (view == autoCompleteTextView) {
+            // Full address while editing, the short form otherwise
+            autoCompleteTextView.setText(if (hasFocus) url else displayUrl(url), false)
+            if (hasFocus) autoCompleteTextView.selectAll()
+        }
         if (hasFocus) {
             UiUtils.showKeyboard(requireActivity().window, view)
         } else {

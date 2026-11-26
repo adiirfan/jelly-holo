@@ -3,217 +3,191 @@
      SPDX-FileCopyrightText: The LineageOS Project
      SPDX-License-Identifier: Apache-2.0
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="wrap_content"
-    android:layout_height="match_parent"
-    android:layout_margin="16dp"
-    android:orientation="vertical">
+<!-- Early-Chrome menu: three buttons on top, a plain Holo list below. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="252dp"
+    android:layout_height="wrap_content"
+    android:background="@drawable/holo_menu_panel"
+    android:padding="1dp"
+    android:scrollbarStyle="insideOverlay">
 
-    <androidx.cardview.widget.CardView
-        android:id="@+id/actionBarCardView"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="?attr/colorSurfaceVariant"
-        app:cardCornerRadius="28dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:orientation="vertical">
 
         <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingHorizontal="4dp"
-            android:paddingVertical="12dp">
-
-            <ImageButton
-                android:id="@+id/backButton"
-                style="@style/Theme.Jelly.MenuTopBarIcon"
-                android:contentDescription="@string/menu_go_back"
-                android:src="@drawable/ic_back" />
+            android:id="@+id/actionBarCardView"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:orientation="horizontal">
 
             <ImageButton
                 android:id="@+id/forwardButton"
-                style="@style/Theme.Jelly.MenuTopBarIcon"
+                style="@style/Widget.Holo.MenuIcon"
                 android:contentDescription="@string/menu_go_forward"
                 android:src="@drawable/ic_forward" />
 
-            <ImageButton
-                android:id="@+id/refreshButton"
-                style="@style/Theme.Jelly.MenuTopBarIcon"
-                android:contentDescription="@string/menu_refresh"
-                android:src="@drawable/ic_refresh" />
+            <View style="@style/Widget.Holo.MenuIconDivider" />
 
             <ImageButton
                 android:id="@+id/addToFavoriteButton"
-                style="@style/Theme.Jelly.MenuTopBarIcon"
+                style="@style/Widget.Holo.MenuIcon"
                 android:contentDescription="@string/menu_fav_add"
-                android:src="@drawable/ic_heart_plus" />
+                android:src="@drawable/ic_star" />
+
+            <View style="@style/Widget.Holo.MenuIconDivider" />
 
             <ImageButton
-                android:id="@+id/shareButton"
-                style="@style/Theme.Jelly.MenuTopBarIcon"
-                android:contentDescription="@string/menu_share"
-                android:src="@drawable/ic_share" />
+                android:id="@+id/refreshButton"
+                style="@style/Widget.Holo.MenuIcon"
+                android:contentDescription="@string/menu_refresh"
+                android:src="@drawable/ic_refresh" />
         </LinearLayout>
 
-    </androidx.cardview.widget.CardView>
+        <View style="@style/Widget.Holo.MenuDivider" />
 
-    <androidx.cardview.widget.CardView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_marginTop="16dp"
-        app:cardBackgroundColor="?attr/colorSurface"
-        app:cardCornerRadius="4dp">
+            <TextView
+                android:id="@+id/newTabButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_new_tab" />
 
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/newPrivateTabButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_incognito" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/favoritesButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_favorites" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/historyButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_history" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/downloadsButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_downloads" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/shareButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_share_page" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/findInPageButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_search" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/addToHomeScreenButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_shortcut" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/desktopShortcutsButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_desktop_shortcuts" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/backgroundShortcutsButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_background_shortcuts" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/printButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_print" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
 
             <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingVertical="8dp">
+                android:id="@+id/desktopViewButton"
+                style="@style/Widget.Holo.MenuRow">
 
-                <LinearLayout
-                    android:id="@+id/newTabButton"
-                    style="@style/Theme.Jelly.MenuItem">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/menu_desktop_mode"
+                    android:textColor="@color/holo_text"
+                    android:textSize="17sp" />
 
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_new_tab"
-                        app:drawableStartCompat="@drawable/ic_new_tab" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/newPrivateTabButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_incognito"
-                        app:drawableStartCompat="@drawable/ic_new_private_tab" />
-                </LinearLayout>
-
-                <com.google.android.material.divider.MaterialDivider style="@style/Theme.Jelly.MenuDivider" />
-
-                <LinearLayout
-                    android:id="@+id/favoritesButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_favorites"
-                        app:drawableStartCompat="@drawable/ic_favorite" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/historyButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_history"
-                        app:drawableStartCompat="@drawable/ic_history" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/downloadsButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_downloads"
-                        app:drawableStartCompat="@drawable/ic_file_download" />
-                </LinearLayout>
-
-                <com.google.android.material.divider.MaterialDivider style="@style/Theme.Jelly.MenuDivider" />
-
-                <LinearLayout
-                    android:id="@+id/addToHomeScreenButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_shortcut"
-                        app:drawableStartCompat="@drawable/ic_apps" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/findInPageButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_search"
-                        app:drawableStartCompat="@drawable/ic_find_in_page" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/desktopViewButton"
-                    style="@style/Theme.Jelly.MenuItem"
-                    android:background="@null"
+                <CheckBox
+                    android:id="@+id/desktopViewCheckBox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:clickable="false"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:layout_width="0dp"
-                        android:layout_marginEnd="12dp"
-                        android:layout_weight="1"
-                        android:text="@string/menu_desktop_mode"
-                        app:drawableStartCompat="@drawable/ic_desktop" />
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/desktopViewSwitch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/printButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_print"
-                        app:drawableStartCompat="@drawable/ic_print" />
-                </LinearLayout>
-
-                <com.google.android.material.divider.MaterialDivider style="@style/Theme.Jelly.MenuDivider" />
-
-                <LinearLayout
-                    android:id="@+id/desktopShortcutsButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_desktop_shortcuts"
-                        app:drawableStartCompat="@drawable/ic_desktop" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/backgroundShortcutsButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_background_shortcuts"
-                        app:drawableStartCompat="@drawable/ic_external" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/settingsButton"
-                    style="@style/Theme.Jelly.MenuItem">
-
-                    <TextView
-                        style="@style/Theme.Jelly.MenuItemTitle"
-                        android:text="@string/menu_settings"
-                        app:drawableStartCompat="@drawable/ic_settings" />
-                </LinearLayout>
+                    android:focusable="false"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp" />
             </LinearLayout>
-        </ScrollView>
-    </androidx.cardview.widget.CardView>
-</LinearLayout>
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <LinearLayout
+                android:id="@+id/darkPagesButton"
+                style="@style/Widget.Holo.MenuRow">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/menu_dark_pages"
+                    android:textColor="@color/holo_text"
+                    android:textSize="17sp" />
+
+                <CheckBox
+                    android:id="@+id/darkPagesCheckBox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp" />
+            </LinearLayout>
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/adsBlockedRow"
+                style="@style/Widget.Holo.MenuRow"
+                android:background="@null"
+                android:clickable="false"
+                android:textColor="@color/holo_text_secondary" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
+                android:id="@+id/settingsButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_settings" />
+    </LinearLayout>
+</ScrollView>

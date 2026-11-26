@@ -18,6 +18,8 @@ class FavoriteRepository(private val favoriteDao: FavoriteDao) {
         favoriteDao.update(id, title, url)
     }
 
+    suspend fun contains(url: String) = favoriteDao.getId(url) != null
+
     suspend fun delete(id: Long) {
         favoriteDao.delete(id)
     }

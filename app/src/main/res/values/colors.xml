@@ -27,4 +27,6 @@
     <color name="holo_switch_thumb_off">#A8A8A8</color>
     <color name="holo_pressed">#2633B5E5</color>
     <color name="holo_page_background">#FFFFFF</color>
+    <color name="holo_secure">#3A8A3A</color>
+    <color name="holo_toolbar_divider">#C4C4C4</color>
 </resources>

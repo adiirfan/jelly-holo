@@ -11,6 +11,7 @@ import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
+import android.content.res.Configuration
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.IntentFilter
@@ -263,7 +264,6 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
         menuDialog = MenuDialog(this, desktopMode) { option: MenuDialog.Option ->
             when (option) {
-                MenuDialog.Option.BACK -> webView.goBack()
                 MenuDialog.Option.FORWARD -> webView.goForward()
                 MenuDialog.Option.NEW_TAB -> openInNewTab(this, null, false)
                 MenuDialog.Option.NEW_PRIVATE_TAB -> openInNewTab(this, null, true)
@@ -319,6 +319,12 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                     menuDialog.isDesktopMode = desktopMode
                 }
 
+                MenuDialog.Option.DARK_PAGES -> {
+                    sharedPreferencesExt.darkPages = !sharedPreferencesExt.darkPages
+                    webView.applyDarkPages(sharedPreferencesExt.darkPages)
+                    menuDialog.isDarkPages = sharedPreferencesExt.darkPages
+                }
+
                 MenuDialog.Option.DESKTOP_SHORTCUTS -> Intent(
                     this,
                     BackgroundShortcutActivity::class.java
@@ -348,6 +354,18 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         }
         urlBarLayout.onMoreButtonClickCallback = {
             UiUtils.hideKeyboard(window, urlBarLayout)
+            menuDialog.darkPagesAvailable = isNightMode()
+            menuDialog.isDarkPages = sharedPreferencesExt.darkPages
+            menuDialog.setBlockedCount(
+                webView.blockedOnPage().takeIf { sharedPreferencesExt.adBlockEnabled }
+            )
+            menuDialog.isFavorite = false
+            webView.url?.let { url ->
+                lifecycleScope.launch {
+                    menuDialog.isFavorite =
+                        (application as JellyApplication).favoriteRepository.contains(url)
+                }
+            }
             menuDialog.showAsDropdownMenu(urlBarLayout, sharedPreferencesExt.reachModeEnabled)
         }
 
@@ -429,9 +447,15 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         super.onPause()
     }
 
+    private fun isNightMode() =
+        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                Configuration.UI_MODE_NIGHT_YES
+
     override fun onResume() {
         super.onResume()
         if (backgroundShortcutId == null) webView.onResume()
+        // Other tabs may have switched Dark pages while this one was away
+        if (::webView.isInitialized) webView.applyDarkPages(sharedPreferencesExt.darkPages)
         CookieManager.getInstance()
             .setAcceptCookie(!incognito && sharedPreferencesExt.cookiesEnabled)
         if (sharedPreferencesExt.lookLockEnabled) {
@@ -539,9 +563,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     private fun setAsFavorite(title: String, url: String) {
         val color = urlIcon?.takeUnless { it.isRecycled }?.let { bitmap ->
             UiUtils.getColor(bitmap, false).takeUnless { it == Color.TRANSPARENT }
-        } ?: ContextCompat.getColor(
-            this, com.google.android.material.R.color.material_dynamic_primary50
-        )
+        } ?: ContextCompat.getColor(this, R.color.holo_blue)
         favoritesViewModel.insert(title, url, color)
         Snackbar.make(
             constraintLayout, getString(R.string.favorite_added),

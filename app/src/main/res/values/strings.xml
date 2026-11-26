@@ -28,13 +28,13 @@
     <!-- Menu action: create new tab -->
     <string name="menu_new_tab">New tab</string>
     <!-- Menu action: create new incognito tab -->
-    <string name="menu_incognito">Incognito tab</string>
+    <string name="menu_incognito">New incognito tab</string>
     <!-- Menu action: add current page to favorites -->
-    <string name="menu_fav_add">Add to favorites</string>
+    <string name="menu_fav_add">Bookmark this page</string>
     <!-- Menu action: share current page -->
     <string name="menu_share">Share</string>
     <!-- Menu action: show favorites list -->
-    <string name="menu_favorites">Favorites</string>
+    <string name="menu_favorites">Bookmarks</string>
     <!-- Menu action: show history list -->
     <string name="menu_history">History</string>
     <!-- Menu action: show downloads -->
@@ -171,13 +171,13 @@
     <string name="history_snackbar_item_deleted_message">Undo</string>
 
     <!-- Favorite: title -->
-    <string name="favorite_title">Favorites</string>
+    <string name="favorite_title">Bookmarks</string>
     <!-- Favorite: snackBar message shown when an url is added to favorites -->
-    <string name="favorite_added">Added to favorites</string>
+    <string name="favorite_added">Bookmarked</string>
     <!-- Favorite: empty status text -->
-    <string name="favorite_empty">There\'s nothing here, add a favorite link to see it here</string>
+    <string name="favorite_empty">No bookmarks yet. Tap the star in the menu to add one.</string>
     <!-- Favorite: edit dialog title -->
-    <string name="favorite_edit_dialog_title">Edit favorite</string>
+    <string name="favorite_edit_dialog_title">Edit bookmark</string>
     <!-- Favorite: edit dialog: title of the favorite -->
     <string name="favorite_edit_title">Title</string>
     <!-- Favorite: edit dialog: url of the favorite-->
@@ -281,4 +281,11 @@
         <item>light</item>
         <item>black</item>
     </string-array>
+    <string name="tabs_button">Tabs</string>
+    <plurals name="tabs_open">
+        <item quantity="one">%d tab open</item>
+        <item quantity="other">%d tabs open</item>
+    </plurals>
+    <string name="menu_share_page">Share…</string>
+    <string name="menu_dark_pages">Dark pages</string>
 </resources>

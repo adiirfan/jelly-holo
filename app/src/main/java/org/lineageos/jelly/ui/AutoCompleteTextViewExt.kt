@@ -9,6 +9,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
+import android.graphics.Paint
 import android.graphics.Shader
 import android.util.AttributeSet
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
@@ -27,32 +28,30 @@ class AutoCompleteTextViewExt : MaterialAutoCompleteTextView {
         requestLayout()
     }
 
-    public override fun onDraw(canvas: Canvas) {
-        val lineWidth = layout.getLineWidth(0)
-        val width = measuredWidth.toFloat()
-        if (text == null || text.isEmpty() || lineWidth <= width) {
-            paint.shader = null
-            super.onDraw(canvas)
-            return
-        }
-        val textColor = currentTextColor
-        val widthEnd = width + positionX
-        val percent = (width * 0.2).toFloat()
-        val fadeStart = positionX / widthEnd
-        val stopStart = if (positionX > 0) (positionX + percent) / widthEnd else 0f
-        val stopEnd = (widthEnd - if (lineWidth > widthEnd) percent else 0f) / widthEnd
-        paint.shader = getGradient(widthEnd, fadeStart, stopStart, stopEnd, textColor)
-        super.onDraw(canvas)
-    }
+    /** The box colour, faded over the text where it runs past the edge. */
+    var fadeColor: Int = Color.TRANSPARENT
 
-    companion object {
-        private fun getGradient(
-            widthEnd: Float, fadeStart: Float,
-            stopStart: Float, stopEnd: Float, color: Int
-        ) = LinearGradient(
-            0f, 0f, widthEnd, 0f,
-            intArrayOf(color, Color.TRANSPARENT, color, color, Color.TRANSPARENT),
-            floatArrayOf(0f, fadeStart, stopStart, stopEnd, 1f), Shader.TileMode.CLAMP
+    private val fadePaint = Paint()
+
+    public override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val lineWidth = layout?.getLineWidth(0) ?: return
+        val width = measuredWidth.toFloat()
+        if (text.isNullOrEmpty() || lineWidth <= width || Color.alpha(fadeColor) == 0) return
+        // Drawn over the text, so coloured parts of the address keep their colours
+        val fade = width * 0.15f
+        val end = positionX + width
+        fadePaint.shader = LinearGradient(
+            end - fade, 0f, end, 0f,
+            fadeColor and 0x00FFFFFF, fadeColor, Shader.TileMode.CLAMP
         )
+        canvas.drawRect(end - fade, 0f, end, height.toFloat(), fadePaint)
+        if (positionX > 0) {
+            fadePaint.shader = LinearGradient(
+                positionX.toFloat(), 0f, positionX + fade, 0f,
+                fadeColor, fadeColor and 0x00FFFFFF, Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(positionX.toFloat(), 0f, positionX + fade, height.toFloat(), fadePaint)
+        }
     }
 }

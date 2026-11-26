@@ -99,11 +99,16 @@ class SharedPreferencesExt(context: Context) {
         get() = sharedPreferences.getLong(ADBLOCK_LISTS_UPDATED_KEY, 0L)
         set(value) = sharedPreferences.edit { putLong(ADBLOCK_LISTS_UPDATED_KEY, value) }
 
+    var darkPages: Boolean
+        get() = sharedPreferences.getBoolean(DARK_PAGES_KEY, false)
+        set(value) = sharedPreferences.edit { putBoolean(DARK_PAGES_KEY, value) }
+
     val look: String
         get() = sharedPreferences.getString(LOOK_KEY, LOOK_SYSTEM) ?: LOOK_SYSTEM
 
     companion object {
         const val LOOK_KEY = "key_theme"
+        private const val DARK_PAGES_KEY = "key_dark_pages"
         const val LOOK_SYSTEM = "system"
         const val LOOK_LIGHT = "light"
         const val LOOK_BLACK = "black"
