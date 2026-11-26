@@ -84,6 +84,7 @@ internal class WebClient(
         if (request.isForMainFrame) {
             pageUrl = url
             pageStartedAt = SystemClock.elapsedRealtime()
+            if (AdBlock.logging) startDataLog(ext, request.url.host)
             ext.blockedCount.set(0)
             ext.checkedCount.set(0)
             ext.slowestCheckNanos.set(0)
@@ -104,8 +105,19 @@ internal class WebClient(
             ext.slowestCheckNanos.accumulateAndGet(took) { a, b -> maxOf(a, b) }
         }
         if (!block) return null
+        if (log) Log.d(AdBlock.TAG, "blocked ${url.take(140)}")
         ext.blockedCount.incrementAndGet()
         return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+    }
+
+    /** Debug log only: data the app received in the 20 s after a page started. */
+    private fun startDataLog(view: WebViewExt, host: String?) {
+        val uid = android.os.Process.myUid()
+        val start = android.net.TrafficStats.getUidRxBytes(uid)
+        view.postDelayed({
+            val kb = (android.net.TrafficStats.getUidRxBytes(uid) - start) / 1024
+            Log.d(AdBlock.TAG, "data $host: $kb KB in 20 s, blocked ${view.blockedCount.get()}")
+        }, 20_000)
     }
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
