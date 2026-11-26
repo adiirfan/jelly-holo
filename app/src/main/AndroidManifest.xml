@@ -76,6 +76,11 @@
         </activity>
 
         <activity
+            android:name=".tabs.TabsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Jelly.NoActionBar" />
+
+        <activity
             android:name=".history.HistoryActivity"
             android:label="@string/history_title"
             android:theme="@style/Theme.Jelly.NoActionBar" />

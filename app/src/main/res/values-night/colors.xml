@@ -23,4 +23,5 @@
     <color name="holo_page_background">#000000</color>
     <color name="holo_secure">#5FB35F</color>
     <color name="holo_toolbar_divider">#1C1C1C</color>
+    <color name="holo_tab_title">#161616</color>
 </resources>

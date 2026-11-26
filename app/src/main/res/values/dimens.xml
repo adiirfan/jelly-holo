@@ -6,4 +6,7 @@
 <resources>
     <dimen name="delete_margin">12dp</dimen>
     <dimen name="toolbar_elevation">6dp</dimen>
+    <!-- Tab screen cards: full height, and how much of each shows under the next -->
+    <dimen name="tab_card_height">330dp</dimen>
+    <dimen name="tab_card_peek">92dp</dimen>
 </resources>

@@ -288,4 +288,7 @@
     </plurals>
     <string name="menu_share_page">Share…</string>
     <string name="menu_dark_pages">Dark pages</string>
+    <string name="tabs_back">Back to the current tab</string>
+    <string name="tab_untitled">New tab</string>
+    <string name="tab_close">Close %1$s</string>
 </resources>

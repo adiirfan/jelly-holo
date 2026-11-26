@@ -78,6 +78,9 @@ import org.lineageos.jelly.models.WebShare
 import org.lineageos.jelly.shortcut.BackgroundShortcut
 import org.lineageos.jelly.shortcut.BackgroundShortcutActivity
 import org.lineageos.jelly.shortcut.BackgroundShortcutService
+import org.lineageos.jelly.tabs.TabSnapshots
+import org.lineageos.jelly.tabs.TabsActivity
+import org.lineageos.jelly.tabs.tabTasks
 import org.lineageos.jelly.ui.MenuDialog
 import org.lineageos.jelly.ui.UrlBarLayout
 import org.lineageos.jelly.utils.IntentUtils
@@ -352,6 +355,10 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             }
             menuDialog.dismiss()
         }
+        urlBarLayout.onTabsClick = {
+            UiUtils.hideKeyboard(window, urlBarLayout)
+            startActivity(Intent(this, TabsActivity::class.java))
+        }
         urlBarLayout.onMoreButtonClickCallback = {
             UiUtils.hideKeyboard(window, urlBarLayout)
             menuDialog.darkPagesAvailable = isNightMode()
@@ -443,6 +450,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     public override fun onPause() {
+        // The tab screen shows this page as it was left
+        if (::webView.isInitialized && !incognito) TabSnapshots.save(this, taskId, webView)
         if (backgroundShortcutId == null) webView.onPause()
         super.onPause()
     }
@@ -454,6 +463,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     override fun onResume() {
         super.onResume()
         if (backgroundShortcutId == null) webView.onResume()
+        urlBarLayout.tabCount = tabTasks(this).size
         // Other tabs may have switched Dark pages while this one was away
         if (::webView.isInitialized) webView.applyDarkPages(sharedPreferencesExt.darkPages)
         CookieManager.getInstance()
@@ -693,6 +703,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                 it.copy(config, true)
             }
             updateTaskDescription()
+            urlIcon?.let { icon -> TabSnapshots.saveIcon(this, taskId, icon) }
             if (!it.isRecycled) {
                 it.recycle()
             }
@@ -774,6 +785,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
     override fun updateHistory(title: String, url: String) {
         historyViewModel.insertOrUpdate(title, url)
+        // Name the tab (in recent apps and the tab screen) even when the site has no icon
+        updateTaskDescription()
     }
 
     override fun replaceHistory(title: String, url: String, newUrl: String) {
