@@ -268,4 +268,17 @@
     <string name="pref_adblock_update_failed">Couldn\'t update: %1$s. Still using the old lists.</string>
     <string name="adblock_allow_site">Allow ads on this site</string>
     <string name="adblock_blocked_count">Ads blocked: %1$d</string>
+
+    <!-- Jelly Holo: look -->
+    <string name="pref_look_title">Look</string>
+    <string-array name="pref_look_entries" translatable="false">
+        <item>Follow the phone</item>
+        <item>Light</item>
+        <item>Black</item>
+    </string-array>
+    <string-array name="pref_look_values" translatable="false">
+        <item>system</item>
+        <item>light</item>
+        <item>black</item>
+    </string-array>
 </resources>

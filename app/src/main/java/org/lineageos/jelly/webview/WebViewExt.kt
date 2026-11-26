@@ -6,6 +6,7 @@
 package org.lineageos.jelly.webview
 
 import android.content.Context
+import androidx.core.content.ContextCompat
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import android.graphics.Bitmap
@@ -186,6 +187,8 @@ class WebViewExt @JvmOverloads constructor(
         urlBarLayout.onReloadCallback = { reload() }
         urlBarLayout.onSearchPositionChangeCallback = { findNext(it) }
         setup(urlBarLayout)
+        // Black (or white) before the page paints: no white flash in the Black look
+        setBackgroundColor(ContextCompat.getColor(context, R.color.holo_page_background))
         setWebViewDesktopMode(desktopMode)
         initialized = true
     }

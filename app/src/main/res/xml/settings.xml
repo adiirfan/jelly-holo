@@ -4,6 +4,14 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+    <ListPreference
+        app:defaultValue="system"
+        app:entries="@array/pref_look_entries"
+        app:entryValues="@array/pref_look_values"
+        app:iconSpaceReserved="false"
+        app:key="key_theme"
+        app:title="@string/pref_look_title"
+        app:useSimpleSummaryProvider="true" />
 
     <ListPreference
         app:defaultValue="@string/default_search_engine"

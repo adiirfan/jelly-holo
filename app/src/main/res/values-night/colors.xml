@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<!-- The Black look: true black for the OLED screen, Holo blue the only colour. -->
+<resources>
+    <color name="holo_background">#000000</color>
+    <color name="holo_surface">#000000</color>
+    <color name="holo_toolbar">#000000</color>
+    <color name="holo_omnibox">#141414</color>
+    <color name="holo_omnibox_border">#2E2E2E</color>
+    <color name="holo_divider">#1C1C1C</color>
+    <color name="holo_text">#F0F0F0</color>
+    <color name="holo_text_secondary">#9A9A9A</color>
+    <color name="holo_icon">#DDDDDD</color>
+    <color name="holo_accent">@color/holo_blue</color>
+    <color name="holo_progress_track">#161616</color>
+    <color name="holo_control_off">#777777</color>
+    <color name="holo_switch_track_off">#2E2E2E</color>
+    <color name="holo_switch_thumb_off">#5A5A5A</color>
+    <color name="holo_pressed">#3333B5E5</color>
+    <color name="holo_page_background">#000000</color>
+</resources>

@@ -5,14 +5,165 @@
 -->
 <resources xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Jelly Holo: early-Chrome Holo look. The light look is below; values-night
+         holds the Black look's colours, so "Black" is simply night mode. -->
     <style name="Theme.Jelly" parent="Theme.Material3.DayNight">
-        <item name="android:enforceNavigationBarContrast" tools:targetApi="q">true</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">?attr/isLightTheme</item>
+        <!-- Colours: Holo blue is the only accent; no wallpaper colours -->
+        <item name="colorPrimary">@color/holo_accent</item>
+        <item name="colorOnPrimary">@color/holo_surface</item>
+        <item name="colorPrimaryContainer">@color/holo_pressed</item>
+        <item name="colorOnPrimaryContainer">@color/holo_text</item>
+        <item name="colorSecondary">@color/holo_accent</item>
+        <item name="colorOnSecondary">@color/holo_surface</item>
+        <item name="colorSecondaryContainer">@color/holo_pressed</item>
+        <item name="colorOnSecondaryContainer">@color/holo_text</item>
+        <item name="colorTertiary">@color/holo_accent</item>
+        <item name="colorAccent">@color/holo_accent</item>
+        <item name="colorControlActivated">@color/holo_accent</item>
+        <item name="colorControlHighlight">@color/holo_pressed</item>
+        <item name="android:colorBackground">@color/holo_surface</item>
+        <item name="colorOnBackground">@color/holo_text</item>
+        <item name="colorSurface">@color/holo_surface</item>
+        <item name="colorOnSurface">@color/holo_text</item>
+        <item name="colorSurfaceVariant">@color/holo_divider</item>
+        <item name="colorOnSurfaceVariant">@color/holo_text_secondary</item>
+        <item name="colorSurfaceContainerLowest">@color/holo_surface</item>
+        <item name="colorSurfaceContainerLow">@color/holo_surface</item>
+        <item name="colorSurfaceContainer">@color/holo_surface</item>
+        <item name="colorSurfaceContainerHigh">@color/holo_surface</item>
+        <item name="colorSurfaceContainerHighest">@color/holo_surface</item>
+        <item name="colorSurfaceBright">@color/holo_surface</item>
+        <item name="colorSurfaceDim">@color/holo_surface</item>
+        <item name="colorOutline">@color/holo_omnibox_border</item>
+        <item name="colorOutlineVariant">@color/holo_divider</item>
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="android:windowBackground">@color/holo_background</item>
+        <item name="android:textColorPrimary">@color/holo_text</item>
+        <item name="android:textColorSecondary">@color/holo_text_secondary</item>
+        <item name="android:textColorHighlight">@color/holo_pressed</item>
+
+        <!-- Square corners everywhere -->
+        <item name="shapeAppearanceCornerExtraSmall">@style/ShapeAppearance.Holo</item>
+        <item name="shapeAppearanceCornerSmall">@style/ShapeAppearance.Holo</item>
+        <item name="shapeAppearanceCornerMedium">@style/ShapeAppearance.Holo</item>
+        <item name="shapeAppearanceCornerLarge">@style/ShapeAppearance.Holo</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/ShapeAppearance.Holo</item>
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.Holo</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Holo</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Holo</item>
+
+        <!-- Holo controls -->
+        <item name="checkboxStyle">@style/Widget.Holo.CheckBox</item>
+        <item name="android:checkboxStyle">@style/Widget.Holo.CheckBox</item>
+        <item name="switchStyle">@style/Widget.Holo.Switch</item>
+        <item name="android:switchStyle">@style/Widget.Holo.Switch</item>
+        <item name="materialSwitchStyle">@style/Widget.Holo.MaterialSwitch</item>
+        <item name="textInputStyle">@style/Widget.Holo.TextInputLayout</item>
+        <item name="linearProgressIndicatorStyle">@style/Widget.Holo.LinearProgressIndicator</item>
+        <item name="materialButtonStyle">@style/Widget.Holo.Button</item>
+        <item name="borderlessButtonStyle">@style/Widget.Holo.Button</item>
+        <item name="toolbarStyle">@style/Widget.Holo.Toolbar</item>
+        <item name="appBarLayoutStyle">@style/Widget.Holo.AppBarLayout</item>
+        <item name="materialCardViewStyle">@style/Widget.Holo.CardView</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Holo.BottomSheetDialog</item>
+        <item name="snackbarStyle">@style/Widget.Holo.Snackbar</item>
+
+        <!-- Black status and navigation bars, as on Android 4 -->
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
         <item name="alertDialogTheme">@style/Theme.Jelly.AlertDialog</item>
         <item name="materialAlertDialogTheme">@style/Theme.Jelly.AlertDialog</item>
         <item name="autoCompleteTextViewStyle">@style/Theme.Jelly.AutoCompleteTextViewStyle</item>
+    </style>
+
+    <style name="ShapeAppearance.Holo" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">0dp</item>
+    </style>
+
+    <style name="Widget.Holo.CheckBox" parent="Widget.Material3.CompoundButton.CheckBox">
+        <item name="buttonCompat">@drawable/holo_checkbox</item>
+        <item name="android:button">@drawable/holo_checkbox</item>
+        <item name="buttonIcon">@null</item>
+        <item name="buttonTint">@null</item>
+        <item name="buttonIconTint">@null</item>
+        <item name="useMaterialThemeColors">false</item>
+    </style>
+
+    <style name="Widget.Holo.Switch" parent="@android:style/Widget.Material.CompoundButton.Switch">
+        <item name="android:switchMinWidth">56dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:track">@drawable/holo_switch_track</item>
+        <item name="android:thumb">@drawable/holo_switch_thumb</item>
+        <item name="android:showText">false</item>
+    </style>
+
+    <style name="Widget.Holo.MaterialSwitch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="track">@drawable/holo_switch_track</item>
+        <item name="android:thumb">@drawable/holo_switch_thumb</item>
+        <item name="trackTint">@null</item>
+        <item name="thumbTint">@null</item>
+        <item name="thumbIcon">@null</item>
+        <item name="trackDecoration">@null</item>
+    </style>
+
+    <style name="Widget.Holo.TextInputLayout" parent="Widget.Material3.TextInputLayout.FilledBox">
+        <item name="boxBackgroundColor">@android:color/transparent</item>
+        <item name="boxStrokeColor">@color/holo_accent</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+        <item name="hintTextColor">@color/holo_accent</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Holo</item>
+    </style>
+
+    <style name="Widget.Holo.LinearProgressIndicator" parent="Widget.Material3.LinearProgressIndicator">
+        <item name="trackThickness">3dp</item>
+        <item name="trackCornerRadius">0dp</item>
+        <item name="indicatorColor">@color/holo_blue</item>
+        <item name="trackColor">@color/holo_progress_track</item>
+    </style>
+
+    <style name="Widget.Holo.Button" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/holo_text</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="rippleColor">@color/holo_pressed</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Holo</item>
+    </style>
+
+    <style name="Widget.Holo.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="android:background">@color/holo_toolbar</item>
+        <item name="titleTextColor">@color/holo_text</item>
+        <item name="navigationIconTint">@color/holo_icon</item>
+    </style>
+
+    <style name="Widget.Holo.AppBarLayout" parent="Widget.Material3.AppBarLayout">
+        <item name="android:background">@color/holo_toolbar</item>
+        <item name="liftOnScroll">false</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+    <style name="Widget.Holo.CardView" parent="Widget.Material3.CardView.Filled">
+        <item name="cardBackgroundColor">@color/holo_surface</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeWidth">0dp</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Holo</item>
+    </style>
+
+    <style name="ThemeOverlay.Holo.BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.Holo.BottomSheet</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+    </style>
+
+    <style name="Widget.Holo.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">@color/holo_surface</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Holo</item>
+    </style>
+
+    <style name="Widget.Holo.Snackbar" parent="Widget.Material3.Snackbar">
+        <item name="shapeAppearance">@style/ShapeAppearance.Holo</item>
     </style>
 
     <style name="Theme.Jelly.NoActionBar">
@@ -93,17 +244,24 @@
 
     <!-- Alert dialog theme. -->
     <style name="Theme.Jelly.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
-        <item name="android:colorBackground">?attr/colorSurface</item>
-        <item name="dialogCornerRadius">16dp</item>
+        <item name="android:colorBackground">@color/holo_surface</item>
+        <item name="colorSurface">@color/holo_surface</item>
+        <item name="colorSurfaceContainerHigh">@color/holo_surface</item>
+        <item name="dialogCornerRadius">0dp</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/ShapeAppearance.Holo</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/Widget.Holo.DialogTitle</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Holo.Button</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.Holo.Button</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.Holo.Button</item>
+    </style>
+
+    <!-- Holo dialog titles are blue -->
+    <style name="Widget.Holo.DialogTitle" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="android:textColor">@color/holo_accent</item>
     </style>
 
     <!-- Settings switch theme. -->
-    <style name="Theme.Jelly.Settings.Switch" parent="@android:style/Widget.Material.CompoundButton.Switch">
-        <item name="android:switchMinWidth">52dp</item>
-        <item name="android:minHeight">48dp</item>
-        <item name="android:track">@drawable/settingslib_switch_track</item>
-        <item name="android:thumb">@drawable/settingslib_switch_thumb</item>
-    </style>
+    <style name="Theme.Jelly.Settings.Switch" parent="Widget.Holo.Switch" />
 
     <!-- Collapsing toolbar style -->
     <style name="Theme.Jelly.Settings.ToolbarCollapsed" parent="@android:style/TextAppearance.DeviceDefault.Widget.ActionBar.Title">

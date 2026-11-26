@@ -5,4 +5,26 @@
 -->
 <resources>
     <color name="colorDelete">#F44336</color>
+
+    <!-- Holo blue, the only accent -->
+    <color name="holo_blue">#33B5E5</color>
+    <color name="holo_blue_dark">#0099CC</color>
+
+    <!-- Light look (the Black look overrides these in values-night) -->
+    <color name="holo_background">#F3F3F3</color>
+    <color name="holo_surface">#FAFAFA</color>
+    <color name="holo_toolbar">#E6E6E6</color>
+    <color name="holo_omnibox">#FFFFFF</color>
+    <color name="holo_omnibox_border">#BDBDBD</color>
+    <color name="holo_divider">#E0E0E0</color>
+    <color name="holo_text">#222222</color>
+    <color name="holo_text_secondary">#666666</color>
+    <color name="holo_icon">#555555</color>
+    <color name="holo_accent">@color/holo_blue_dark</color>
+    <color name="holo_progress_track">#D0D0D0</color>
+    <color name="holo_control_off">#999999</color>
+    <color name="holo_switch_track_off">#DDDDDD</color>
+    <color name="holo_switch_thumb_off">#A8A8A8</color>
+    <color name="holo_pressed">#2633B5E5</color>
+    <color name="holo_page_background">#FFFFFF</color>
 </resources>

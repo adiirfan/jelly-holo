@@ -99,7 +99,15 @@ class SharedPreferencesExt(context: Context) {
         get() = sharedPreferences.getLong(ADBLOCK_LISTS_UPDATED_KEY, 0L)
         set(value) = sharedPreferences.edit { putLong(ADBLOCK_LISTS_UPDATED_KEY, value) }
 
+    val look: String
+        get() = sharedPreferences.getString(LOOK_KEY, LOOK_SYSTEM) ?: LOOK_SYSTEM
+
     companion object {
+        const val LOOK_KEY = "key_theme"
+        const val LOOK_SYSTEM = "system"
+        const val LOOK_LIGHT = "light"
+        const val LOOK_BLACK = "black"
+
         const val ADBLOCK_ENABLED_KEY = "key_adblock_enabled"
         private const val ADBLOCK_ENABLED_DEFAULT = true
         private const val ADBLOCK_ALLOWED_HOSTS_KEY = "key_adblock_allowed_hosts"
