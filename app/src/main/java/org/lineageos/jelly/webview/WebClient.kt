@@ -23,6 +23,12 @@ import android.view.LayoutInflater
 import android.webkit.HttpAuthHandler
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.os.SystemClock
+import android.util.Log
+import org.lineageos.jelly.adblock.AdBlock
+import org.lineageos.jelly.utils.SharedPreferencesExt
+import java.io.ByteArrayInputStream
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
@@ -57,6 +63,51 @@ internal class WebClient(
         }
     }
 
+    private val prefs by lazy { SharedPreferencesExt(context) }
+
+    /** The page whose requests are being checked; set on each main-frame load. */
+    @Volatile
+    private var pageUrl = ""
+
+    @Volatile
+    private var blocking = true
+
+    @Volatile
+    private var pageStartedAt = 0L
+
+    override fun shouldInterceptRequest(
+        view: WebView,
+        request: WebResourceRequest,
+    ): WebResourceResponse? {
+        val ext = view as? WebViewExt ?: return null
+        val url = request.url.toString()
+        if (request.isForMainFrame) {
+            pageUrl = url
+            pageStartedAt = SystemClock.elapsedRealtime()
+            ext.blockedCount.set(0)
+            ext.checkedCount.set(0)
+            ext.slowestCheckNanos.set(0)
+            ext.checkCpuNanos.set(0)
+            blocking = prefs.adBlockEnabled &&
+                    request.url.host !in prefs.adBlockAllowedHosts
+            return null
+        }
+        if (!blocking) return null
+        val log = AdBlock.logging
+        val cpu = if (log) android.os.Debug.threadCpuTimeNanos() else 0L
+        val t = System.nanoTime()
+        val block = AdBlock.shouldBlock(url, pageUrl, request.requestHeaders["Accept"] ?: "*/*")
+        val took = System.nanoTime() - t
+        ext.checkedCount.incrementAndGet()
+        if (log) {
+            ext.checkCpuNanos.addAndGet(android.os.Debug.threadCpuTimeNanos() - cpu)
+            ext.slowestCheckNanos.accumulateAndGet(took) { a, b -> maxOf(a, b) }
+        }
+        if (!block) return null
+        ext.blockedCount.incrementAndGet()
+        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+    }
+
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         urlBarLayout.onPageLoadStarted(url)
@@ -68,6 +119,17 @@ internal class WebClient(
     override fun onPageFinished(view: WebView, url: String) {
         super.onPageFinished(view, url)
         urlBarLayout.onPageLoadFinished(view.certificate)
+        if (AdBlock.logging && view is WebViewExt) {
+            Log.d(
+                AdBlock.TAG,
+                "page ${Uri.parse(url).host} loaded in " +
+                        "${SystemClock.elapsedRealtime() - pageStartedAt} ms: " +
+                        "blocked ${view.blockedCount.get()} of ${view.checkedCount.get()}, " +
+                        "average check ${view.checkCpuNanos.get() / maxOf(1, view.checkedCount.get()) / 1000} us " +
+                        "processor time (slowest ${view.slowestCheckNanos.get() / 1000} us), " +
+                        "blocking ${if (blocking) "on" else "off"}"
+            )
+        }
         if (view.settings.javaScriptEnabled) {
             view.evaluateJavascript(JsSyncUrl.SCRIPT, null)
             view.evaluateJavascript(JsManifest.SCRIPT, null)

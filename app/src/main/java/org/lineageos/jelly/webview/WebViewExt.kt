@@ -6,6 +6,8 @@
 package org.lineageos.jelly.webview
 
 import android.content.Context
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -50,6 +52,16 @@ class WebViewExt @JvmOverloads constructor(
         private set
 
     private val sharedPreferencesExt by lazy { SharedPreferencesExt(context) }
+
+    /** Requests the ad blocker dropped on the page now showing. */
+    val blockedCount = AtomicInteger()
+
+    /** Requests checked on this page, and the slowest check (for the debug log). */
+    val checkedCount = AtomicInteger()
+    val slowestCheckNanos = AtomicLong()
+    val checkCpuNanos = AtomicLong()
+
+    fun blockedOnPage(): Int = blockedCount.get()
 
     override fun loadUrl(url: String) {
         lastLoadedUrl = url

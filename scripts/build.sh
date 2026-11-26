@@ -9,7 +9,7 @@ PHONE="${PHONE:-BH906DHDD1}"
 
 if [ -d blocker ]; then
     [ -s blocker/lists/easylist.txt ] && [ -s blocker/lists/easyprivacy.txt ] || scripts/fetch-lists.sh
-    (cd blocker && cargo test --quiet)
+    (cd blocker && cargo test --quiet --release)
     mkdir -p app/src/main/assets
     (cd blocker && cargo run --quiet --release --bin compile_lists -- \
         ../app/src/main/assets/adblock.dat lists/easylist.txt lists/easyprivacy.txt)

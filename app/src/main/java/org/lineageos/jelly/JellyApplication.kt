@@ -7,6 +7,7 @@ package org.lineageos.jelly
 
 import android.app.Application
 import com.google.android.material.color.DynamicColors
+import org.lineageos.jelly.adblock.AdBlock
 import org.lineageos.jelly.database.FavoriteDatabase
 import org.lineageos.jelly.database.HistoryDatabase
 import org.lineageos.jelly.repository.FavoriteRepository
@@ -24,5 +25,7 @@ class JellyApplication : Application() {
 
         // Observe dynamic colors changes
         DynamicColors.applyToActivitiesIfAvailable(this)
+
+        AdBlock.start(this)
     }
 }

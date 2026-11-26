@@ -125,3 +125,43 @@ fn real_lists_block_known_ad_servers() {
     }
     eprintln!("1000 checks: {:?}", t.elapsed());
 }
+
+/// The first check after loading must not pay the engine's one-off set-up
+/// cost (it was 0.6 ms here and 8 ms on the phone, during a page load).
+#[test]
+fn first_check_after_load_is_fast() {
+    let (Ok(a), Ok(b)) = (
+        std::fs::read_to_string("lists/easylist.txt"),
+        std::fs::read_to_string("lists/easyprivacy.txt"),
+    ) else {
+        eprintln!("lists not fetched; skipping");
+        return;
+    };
+    let blk = Blocker::new();
+    assert!(blk.load(&compile(&[&a, &b])));
+    let t = std::time::Instant::now();
+    blk.should_block("https://s0.cnn.com/x.js", "https://edition.cnn.com/", ANY);
+    let first = t.elapsed();
+    if cfg!(debug_assertions) {
+        eprintln!("timing only checked in release builds ({first:?})");
+        return;
+    }
+    assert!(first.as_micros() < 150, "first check took {first:?}");
+}
+
+/// On-device timing for one URL: BENCH_URL, BENCH_PAGE (run with --ignored).
+#[test]
+#[ignore]
+fn bench_url() {
+    let a = std::fs::read_to_string("lists/easylist.txt").unwrap();
+    let b = std::fs::read_to_string("lists/easyprivacy.txt").unwrap();
+    let blk = Blocker::new();
+    blk.load(&compile(&[&a, &b]));
+    let url = std::env::var("BENCH_URL").unwrap();
+    let page = std::env::var("BENCH_PAGE").unwrap();
+    let t = std::time::Instant::now();
+    for _ in 0..200 {
+        blk.should_block(&url, &page, ANY);
+    }
+    eprintln!("bench {} : {:?} per check", url, t.elapsed() / 200);
+}

@@ -36,6 +36,7 @@ impl Blocker {
         if engine.deserialize(bytes).is_err() {
             return false;
         }
+        warm_up(&engine);
         *self.engine.write().unwrap_or_else(|e| e.into_inner()) = Some(engine);
         true
     }
@@ -63,6 +64,28 @@ impl Blocker {
 impl Default for Blocker {
     fn default() -> Self {
         Blocker::new()
+    }
+}
+
+/// Requests of every kind, run once before an engine is used: the engine
+/// sets parts of itself up on first use, which would otherwise land on the
+/// first page load.
+fn warm_up(engine: &Engine) {
+    const PAGE: &str = "https://www.example.com/";
+    const URLS: [(&str, &str); 8] = [
+        ("https://static.example.net/x.js", "*/*"),
+        ("https://ads.example.net/banner.png", "image/webp,*/*"),
+        ("https://px.example.net/pixel?id=1&ev=PageView", "*/*"),
+        ("https://cdn.example.net/app.css", "text/css,*/*;q=0.1"),
+        ("https://securepubads.g.doubleclick.net/tag/js/gpt.js", "*/*"),
+        ("https://t.example.net/beacon/track", "*/*"),
+        ("https://www.google-analytics.com/g/collect?tid=G-1", "*/*"),
+        ("https://www.example.com/api/data.json", "application/json"),
+    ];
+    for (url, accept) in URLS {
+        if let Ok(r) = Request::new(url, PAGE, request_type(url, accept), "GET") {
+            engine.check_network_request(&r);
+        }
     }
 }
 
