@@ -786,7 +786,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     override fun updateHistory(title: String, url: String) {
         historyViewModel.insertOrUpdate(title, url)
         // Name the tab (in recent apps and the tab screen) even when the site has no icon
-        updateTaskDescription()
+        runOnUiThread { updateTaskDescription() }
     }
 
     override fun replaceHistory(title: String, url: String, newUrl: String) {

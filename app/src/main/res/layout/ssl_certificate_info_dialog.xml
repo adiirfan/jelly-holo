@@ -15,7 +15,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/ssl_cert_dialog_title"
-        android:textAppearance="?attr/textAppearanceTitleLarge" />
+        android:textAppearance="?attr/textAppearanceTitleLarge"
+        android:textColor="@color/holo_accent" />
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"

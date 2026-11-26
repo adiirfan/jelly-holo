@@ -9,4 +9,5 @@
     <!-- Tab screen cards: full height, and how much of each shows under the next -->
     <dimen name="tab_card_height">330dp</dimen>
     <dimen name="tab_card_peek">92dp</dimen>
+    <dimen name="holo_divider_height">1dp</dimen>
 </resources>

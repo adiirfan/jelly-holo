@@ -6,6 +6,7 @@
 package org.lineageos.jelly.ui
 
 import android.annotation.SuppressLint
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import android.text.style.ForegroundColorSpan
 import android.text.Spanned
@@ -98,6 +99,12 @@ class UrlBarLayout @JvmOverloads constructor(
 
     var url: String? = null
         set(value) {
+            // Pages report address changes from a background thread (JsSyncUrl);
+            // views may only be changed on the main thread.
+            if (Looper.myLooper() != Looper.getMainLooper()) {
+                post { url = value }
+                return
+            }
             field = value
 
             if (autoCompleteTextView.hasFocus()) {
@@ -105,7 +112,12 @@ class UrlBarLayout @JvmOverloads constructor(
             } else {
                 autoCompleteTextView.setText(displayUrl(value), false)
             }
-            secureButton.isVisible = value?.startsWith("https://") == true
+            val secure = value?.startsWith("https://") == true
+            if (secureButton.isVisible != secure) {
+                secureButton.isVisible = secure
+                // A rebuilt screen can miss this change and leave the lock 0 wide
+                (secureButton.parent as? View)?.let { box -> box.post { box.requestLayout() } }
+            }
         }
 
     /** Number of open tabs, shown in the square counter. */

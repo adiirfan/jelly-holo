@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-FileCopyrightText: The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0 -->
+<!-- Holo text field underline: blue while typing, grey otherwise -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/holo_blue" android:state_focused="true" />
+    <item android:color="@color/holo_control_off" />
+</selector>

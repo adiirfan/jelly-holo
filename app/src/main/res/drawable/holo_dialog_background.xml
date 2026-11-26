@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-FileCopyrightText: The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0 -->
+<!-- Dialog panel: square, with a thin border so it stands out on a black screen -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="24dp"
+    android:insetTop="40dp"
+    android:insetRight="24dp"
+    android:insetBottom="40dp">
+    <shape android:shape="rectangle">
+        <solid android:color="@color/holo_surface" />
+        <stroke android:width="1dp" android:color="@color/holo_omnibox_border" />
+    </shape>
+</inset>

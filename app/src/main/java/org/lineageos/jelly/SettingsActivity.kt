@@ -6,7 +6,6 @@
 package org.lineageos.jelly
 
 import android.content.DialogInterface
-import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.MenuItem
@@ -18,6 +17,7 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.appcompat.widget.Toolbar
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -68,8 +68,9 @@ class SettingsActivity : AppCompatActivity() {
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
 
-            setDivider(ColorDrawable(Color.TRANSPARENT))
-            setDividerHeight(0)
+            // Thin Holo dividers between rows
+            setDivider(ColorDrawable(ContextCompat.getColor(requireContext(), R.color.holo_divider)))
+            setDividerHeight(resources.getDimensionPixelSize(R.dimen.holo_divider_height))
         }
 
         override fun onCreatePreferences(savedInstance: Bundle?, rootKey: String?) {
