@@ -16,6 +16,7 @@ if [ -d blocker ]; then
     (cd blocker && cargo ndk -t arm64-v8a -P 26 -o ../app/src/main/jniLibs build --release --lib)
 fi
 
+scripts/fetch-ytdlp.sh
 ./gradlew --quiet assembleDebug
 apk=app/build/outputs/apk/debug/app-debug.apk
 echo "built $apk"

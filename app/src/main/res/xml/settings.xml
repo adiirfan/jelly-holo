@@ -108,6 +108,11 @@
             app:key="key_fast_downloads"
             app:summary="@string/pref_fast_downloads_summary"
             app:title="@string/pref_fast_downloads_title" />
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="key_ytdlp"
+            app:title="@string/pref_ytdlp_title" />
     </PreferenceCategory>
 
     <PreferenceCategory

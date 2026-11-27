@@ -12,3 +12,7 @@
 /app/src/main/assets/adblock.dat
 /blocker/target/
 /blocker/lists/
+
+# yt-dlp build inputs and outputs
+/ytdlp/cache/
+/app/src/main/assets/ytdlp/

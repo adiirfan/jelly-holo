@@ -46,6 +46,14 @@ android {
         }
     }
 
+    packaging {
+        // yt-dlp's helper programs ship as native libraries and must be
+        // unpacked on install so they can be run
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

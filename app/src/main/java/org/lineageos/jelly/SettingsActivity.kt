@@ -27,6 +27,11 @@ import androidx.preference.SwitchPreference
 import com.google.android.material.checkbox.MaterialCheckBox
 import org.lineageos.jelly.adblock.AdBlock
 import org.lineageos.jelly.utils.SharedPreferencesExt
+import org.lineageos.jelly.ytdlp.YtDlpRuntime
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 import kotlin.reflect.safeCast
@@ -89,6 +94,7 @@ class SettingsActivity : AppCompatActivity() {
             }
             findPreference<Preference>("key_adblock_update")?.summary = adBlockUpdateSummary()
             findPreference<Preference>("key_hidden_elements")?.let { it.summary = hiddenSummary() }
+            findPreference<Preference>("key_ytdlp")?.let { showYtDlpVersion(it) }
             findPreference<SwitchPreference>("key_web_debugging")?.onPreferenceChangeListener =
                 Preference.OnPreferenceChangeListener { _, newValue ->
                     WebView.setWebContentsDebuggingEnabled(newValue as Boolean)
@@ -139,6 +145,19 @@ class SettingsActivity : AppCompatActivity() {
                 else -> {
                     super.onPreferenceTreeClick(preference)
                 }
+            }
+        }
+
+        /** Runs yt-dlp once to show its version, which also shows it works here. */
+        private fun showYtDlpVersion(preference: Preference) {
+            val runtime = YtDlpRuntime(requireContext())
+            preference.summary = getString(
+                if (runtime.needsUnpacking) R.string.ytdlp_getting_ready else R.string.pref_ytdlp_title
+            )
+            lifecycleScope.launch {
+                val version = withContext(Dispatchers.IO) { runtime.version() }
+                preference.summary = version?.let { getString(R.string.pref_ytdlp_version, it) }
+                    ?: getString(R.string.pref_ytdlp_broken)
             }
         }
 

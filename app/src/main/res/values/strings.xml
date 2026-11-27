@@ -342,4 +342,8 @@
     <string name="tabs_back">Back to the current tab</string>
     <string name="tab_untitled">New tab</string>
     <string name="tab_close">Close %1$s</string>
+    <string name="pref_ytdlp_title">yt-dlp</string>
+    <string name="pref_ytdlp_version">Version %1$s</string>
+    <string name="pref_ytdlp_broken">Not working on this phone</string>
+    <string name="ytdlp_getting_ready">Getting ready…</string>
 </resources>
