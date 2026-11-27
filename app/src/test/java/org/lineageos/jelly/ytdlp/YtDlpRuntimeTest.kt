@@ -13,7 +13,7 @@ import java.io.File
 
 class YtDlpRuntimeTest {
     @Test
-    fun environment_points_everything_at_the_app() {
+    fun environment_points_everything_at_the_app_and_lets_python_keep_compiled_code() {
         val env = environment(File("/h"), File("/c"), File("/p"), File("/k.pem"))
         assertEquals(
             mapOf(
@@ -22,7 +22,6 @@ class YtDlpRuntimeTest {
                 "HOME" to "/h",
                 "XDG_CACHE_HOME" to "/c",
                 "SSL_CERT_FILE" to "/k.pem",
-                "PYTHONDONTWRITEBYTECODE" to "1",
             ),
             env,
         )
