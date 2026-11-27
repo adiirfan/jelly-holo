@@ -67,7 +67,9 @@ class TorrentService : Service() {
     private val adding = ConcurrentHashMap.newKeySet<Long>()
 
     private val vpns = ConcurrentHashMap<Network, Long>()
-    @Volatile private var unmetered = true
+    /** The networks under any VPN, and whether each is free (Wi-Fi). */
+    private val underneath = ConcurrentHashMap<Network, Boolean>()
+    private val unmetered get() = unmeteredUnder(underneath.values.map { NetInfo(vpn = false, notMetered = it) })
 
     // Only touched on [worker]
     private var lock: Lock = Lock.Off
@@ -79,6 +81,8 @@ class TorrentService : Service() {
     private var stats: List<TorrentStat> = emptyList()
     private var inited = false
     private var idleTicks = 0
+    /** When each torrent's file list was last written, so progress alone rewrites it rarely. */
+    private val filesWritten = HashMap<String, Long>()
 
     private val vpnCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
@@ -92,13 +96,15 @@ class TorrentService : Service() {
         }
     }
 
-    private val defaultCallback = object : ConnectivityManager.NetworkCallback() {
+    // A VPN often calls itself metered whatever it runs over: "Wi-Fi only" looks under it
+    private val underCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
             val free = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
-            if (free != unmetered) {
-                unmetered = free
-                worker.execute(::reevaluate)
-            }
+            if (underneath.put(network, free) != free) worker.execute(::reevaluate)
+        }
+
+        override fun onLost(network: Network) {
+            if (underneath.remove(network) != null) worker.execute(::reevaluate)
         }
     }
 
@@ -115,7 +121,13 @@ class TorrentService : Service() {
                 .build(),
             vpnCallback,
         )
-        cm.registerDefaultNetworkCallback(defaultCallback)
+        cm.registerNetworkCallback(
+            NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                .build(),
+            underCallback,
+        )
         worker.scheduleWithFixedDelay(::tick, 1, 1, TimeUnit.SECONDS)
     }
 
@@ -132,7 +144,8 @@ class TorrentService : Service() {
                 ACTION_PAUSE -> engineAction(rowId) { NativeTorrent.pause(it) }
                 ACTION_RESUME -> engineAction(rowId) { NativeTorrent.resume(it) }
                 ACTION_SELECT -> intent.getIntArrayExtra(EXTRA_FILES)?.let { files ->
-                    engineAction(rowId) { NativeTorrent.selectFiles(it, files) }
+                    // Can wait up to 2 minutes for a new torrent's disk check: not on this thread
+                    engineAction(rowId) { id -> adders.execute { NativeTorrent.selectFiles(id, files) }; true }
                 }
                 ACTION_REMOVE -> remove(rowId, intent.getBooleanExtra(EXTRA_DELETE, false))
                 ACTION_PAUSE_ALL -> prefs.torrentsOn = false
@@ -147,6 +160,9 @@ class TorrentService : Service() {
      * everything and say why, instead of being killed.
      */
     override fun onTimeout(startId: Int, fgsType: Int) {
+        // Android allows only seconds here: stop at once, tidy up after
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
         worker.execute {
             stopEngine()
             lock = Lock.Off
@@ -160,13 +176,12 @@ class TorrentService : Service() {
                     )
                 }
             }
-            quit()
         }
     }
 
     override fun onDestroy() {
         runCatching { cm.unregisterNetworkCallback(vpnCallback) }
-        runCatching { cm.unregisterNetworkCallback(defaultCallback) }
+        runCatching { cm.unregisterNetworkCallback(underCallback) }
         worker.execute { stopEngine() }
         worker.shutdown()
         runCatching { worker.awaitTermination(10, TimeUnit.SECONDS) }
@@ -193,12 +208,18 @@ class TorrentService : Service() {
                         lock = Lock.WaitVpn
                         return
                     }
-                    cm.bindProcessToNetwork(network)
+                    if (!cm.bindProcessToNetwork(network) && handle != null) {
+                        // The VPN went away between finding it and tying to it: don't start untied
+                        lock = Lock.WaitVpn
+                        return
+                    }
                 }
                 Step.RESUME_ALL -> startEngine()
             }
         }
         lock = next
+        // A start that failed before (no permission yet, a bad port) is tried again
+        if (next is Lock.Run && !engineUp) startEngine()
         if (engineUp) {
             if (prefs.port != runningPort) {
                 // A new port needs a new listener
@@ -249,51 +270,73 @@ class TorrentService : Service() {
         for (row in record { pendingTorrents() }) {
             if (!adding.add(row.id)) continue
             adders.execute {
-                try {
-                    add(row, gen)
-                } finally {
-                    adding.remove(row.id)
+                val answer = try {
+                    ask(row)
+                } catch (e: Exception) {
+                    """{"error":"couldn't add it"}"""
+                }
+                // The list is only changed on the worker, one thing at a time
+                worker.execute {
+                    try {
+                        settle(row, answer, gen)
+                    } finally {
+                        adding.remove(row.id)
+                    }
                 }
             }
         }
     }
 
-    private fun add(row: DownloadItem, gen: Int) {
-        val source = row.source ?: return
-        val answer = JSONObject(
-            when {
-                source.startsWith("magnet:", ignoreCase = true) -> NativeTorrent.addMagnet(source)
-                else -> {
-                    val file = File(source)
-                    if (!file.exists()) """{"error":"the .torrent file is gone"}"""
-                    else NativeTorrent.addBytes(file.readBytes())
-                }
+    /** Asks the engine to add a torrent; a magnet waits until its details arrive. */
+    private fun ask(row: DownloadItem): String {
+        val source = row.source ?: return """{"error":"nothing to add"}"""
+        return when {
+            source.startsWith("magnet:", ignoreCase = true) -> NativeTorrent.addMagnet(source)
+            else -> {
+                val file = File(source)
+                if (!file.exists()) """{"error":"the .torrent file is gone"}""" else NativeTorrent.addBytes(file.readBytes())
             }
-        )
+        }
+    }
+
+    /** Records what the engine answered. Runs on [worker]. */
+    private fun settle(row: DownloadItem, json: String, gen: Int) {
+        val answer = JSONObject(json)
+        if (gen != generation || !engineUp) {
+            // Answered by an engine that has since stopped: the row stays waiting for the next one
+            if (engineUp) worker.execute(::addPending)
+            return
+        }
+        val current = record { byId(row.id) }
         if (answer.has("error")) {
-            // Cut off by the engine stopping (VPN gone, switched off): try again next start
-            if (gen != generation || !engineUp) return
-            record { update(row.copy(state = DownloadState.FAILED, error = answer.getString("error"), updated = now())) }
+            if (current != null) {
+                record { update(current.copy(state = DownloadState.FAILED, error = answer.getString("error"), updated = now())) }
+            }
             return
         }
         val hash = answer.getString("info_hash")
         val name = answer.getString("name")
-        record {
-            val existing = byInfoHash(hash)
-            if (existing != null && existing.id != row.id) {
+        val existing = record { byInfoHash(hash) }
+        when {
+            current == null -> {
+                // Removed while it was starting: take it back out of the engine, unless another row has it
+                if (existing == null) NativeTorrent.remove(answer.getInt("id"), true)
+            }
+            existing != null && existing.id != current.id -> record {
                 // The same torrent again: one row
-                delete(row.id)
+                delete(current.id)
                 update(
                     upsertTorrent(existing, hash, name, now()).copy(
                         state = if (existing.state in SETTLED) DownloadState.QUEUED else existing.state,
                         error = null,
                     )
                 )
-            } else {
-                update(upsertTorrent(row, hash, name, now()).copy(infoHash = hash, engineId = answer.getInt("id")))
+            }
+            else -> record {
+                update(upsertTorrent(current, hash, name, now()).copy(infoHash = hash, engineId = answer.getInt("id")))
             }
         }
-        if (!source.startsWith("magnet:", ignoreCase = true)) File(source).delete()
+        row.source?.takeUnless { it.startsWith("magnet:", ignoreCase = true) }?.let { File(it).delete() }
     }
 
     private fun engineAction(rowId: Long, f: (Int) -> Boolean) {
@@ -341,11 +384,17 @@ class TorrentService : Service() {
             val full = lowOnSpace(runCatching { StatFs(saveFolder().path).availableBytes }.getOrDefault(Long.MAX_VALUE))
             for (s in stats) {
                 val row = record { byInfoHash(s.infoHash) }
-                    ?: record { // The engine has it but the list doesn't (e.g. app data cleared)
-                        val r = upsertTorrent(null, s.infoHash, s.name, t)
-                        r.copy(id = insert(r))
+                    ?: if (adding.isEmpty() && prefs.pendingRemovals.none { it.startsWith(s.infoHash) }) {
+                        record { // The engine has it but the list doesn't (e.g. app data cleared)
+                            val r = upsertTorrent(null, s.infoHash, s.name, t)
+                            r.copy(id = insert(r))
+                        }
+                    } else {
+                        continue // An add or a removal is still being recorded
                     }
-                var next = applyStat(row, s, t)
+                val filesDue = t - (filesWritten[s.infoHash] ?: 0) >= FILES_EVERY_MS
+                var next = applyStat(row, s, t, filesDue)
+                if (next.files != row.files) filesWritten[s.infoHash] = t
                 if (full && s.state == "live" && !s.finished) {
                     NativeTorrent.pause(s.id)
                     next = next.copy(
@@ -365,8 +414,9 @@ class TorrentService : Service() {
             }
         } else {
             for (row in record { torrents() }) {
-                if (row.infoHash == null) continue
-                val next = waitingRow(row, lock, t)
+                // Torrents still starting wait too, so they don't sit at "Starting…"
+                var next = waitingRow(row, lock, t)
+                if (lock is Lock.Run && next.state != row.state) next = next.copy(error = startError)
                 if (next != row) record { update(next) }
             }
         }
@@ -459,6 +509,8 @@ class TorrentService : Service() {
         private const val NOTE_ID = 0x70727265
         /** Seconds with nothing to do before the service ends itself. */
         private const val IDLE_TICKS = 5
+        /** Per-file progress is written into the list at most this often. */
+        private const val FILES_EVERY_MS = 15_000L
 
         const val ACTION_ADD = "torrent_add"
         const val ACTION_PAUSE = "torrent_pause"

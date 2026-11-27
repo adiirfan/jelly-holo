@@ -85,6 +85,16 @@ class DownloadService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+    }
+
+    override fun onDestroy() {
+        if (instance === this) instance = null
+        super.onDestroy()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createChannel()
         when (intent?.action) {
@@ -747,6 +757,13 @@ class DownloadService : Service() {
     }
 
     companion object {
+        @Volatile
+        private var instance: DownloadService? = null
+
+        /** The Downloads page rows of the downloads running right now. */
+        fun liveRecords(): Set<Long> =
+            instance?.running?.values?.map { it.record }?.filter { it >= 0 }?.toSet() ?: emptySet()
+
         private const val CHANNEL = "downloads_visible"
         private const val OLD_CHANNEL = "downloads"
         private const val ACTION_START = "start"

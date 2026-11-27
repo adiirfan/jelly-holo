@@ -42,4 +42,12 @@ class TorrentLinksTest {
     fun a_magnet_without_dn_has_no_name() {
         assertNull(magnetName("magnet:?xt=urn:btih:62a4d9e139f3315f8716bcccca0cc984a9809da1"))
     }
+
+    @Test
+    fun a_magnet_needs_a_tap_or_a_redirect_right_after_one() {
+        assertTrue(allowMagnet(hasGesture = true, isRedirect = false, msSinceTap = Long.MAX_VALUE))
+        assertTrue(allowMagnet(hasGesture = false, isRedirect = true, msSinceTap = 2_000))
+        assertFalse(allowMagnet(hasGesture = false, isRedirect = true, msSinceTap = 60_000))
+        assertFalse(allowMagnet(hasGesture = false, isRedirect = false, msSinceTap = 0))
+    }
 }

@@ -74,8 +74,14 @@ fun parseFiles(json: String?): List<TorrentFile> {
     }
 }
 
-/** The page's row for a torrent the engine is running. */
-fun applyStat(row: DownloadItem, s: TorrentStat, now: Long): DownloadItem {
+/** More files than this are left off the list (the row has to stay small enough to read). */
+const val MAX_LISTED_FILES = 5_000
+
+/**
+ * The page's row for a torrent the engine is running. Per-file progress is
+ * only rewritten when [filesDue]; a change of files or of the choice always is.
+ */
+fun applyStat(row: DownloadItem, s: TorrentStat, now: Long, filesDue: Boolean = true): DownloadItem {
     val state = when {
         s.state == "error" -> DownloadState.FAILED
         s.state == "initializing" -> DownloadState.QUEUED
@@ -101,7 +107,11 @@ fun applyStat(row: DownloadItem, s: TorrentStat, now: Long): DownloadItem {
             DownloadState.PAUSED -> row.error
             else -> null
         },
-        files = if (s.files.isEmpty()) row.files else encodeFiles(s.files),
+        files = when {
+            s.files.isEmpty() -> row.files
+            filesDue || choiceChanged(row.files, s.files) -> encodeFiles(s.files.take(MAX_LISTED_FILES))
+            else -> row.files
+        },
         updated = now,
     )
 }
@@ -123,3 +133,9 @@ fun waitingRow(row: DownloadItem, lock: Lock, now: Long): DownloadItem {
 const val LOW_SPACE_BYTES = 100L * 1024 * 1024
 
 fun lowOnSpace(freeBytes: Long): Boolean = freeBytes < LOW_SPACE_BYTES
+
+private fun choiceChanged(saved: String?, now: List<TorrentFile>): Boolean {
+    val old = parseFiles(saved)
+    val shown = now.take(MAX_LISTED_FILES)
+    return old.size != shown.size || old.zip(shown).any { (a, b) -> a.name != b.name || a.selected != b.selected }
+}

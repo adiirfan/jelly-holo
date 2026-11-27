@@ -32,6 +32,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.lineageos.jelly.R
@@ -94,6 +95,8 @@ class DownloadsActivity : AppCompatActivity(R.layout.activity_downloads) {
                         empty.isVisible = rows.isEmpty()
                     }
                 }
+                // A download whose job died with the app would sit in Active forever
+                withContext(Dispatchers.IO) { runCatching { markInterrupted() } }
                 // Downloads through Android's own manager report there, not here
                 while (true) {
                     withContext(Dispatchers.IO) { runCatching { refreshDm() } }
@@ -137,6 +140,11 @@ class DownloadsActivity : AppCompatActivity(R.layout.activity_downloads) {
         )
         strip.findViewById<ImageView>(R.id.torrentDot).setColorFilter(color)
         strip.findViewById<View>(R.id.torrentStripEdge).setBackgroundColor(color)
+    }
+
+    private suspend fun markInterrupted() {
+        val live = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) DownloadService.liveRecords() else emptySet()
+        for (row in interruptedRows(dao.all().first(), live, System.currentTimeMillis())) dao.update(row)
     }
 
     private suspend fun refreshDm() {

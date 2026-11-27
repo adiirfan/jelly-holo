@@ -6,6 +6,8 @@
 package org.lineageos.jelly.torrent
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NetworkLockTest {
@@ -71,5 +73,12 @@ class NetworkLockTest {
     @Test
     fun turning_the_vpn_rule_off_unties_from_the_vpn() {
         assertEquals(listOf(Step.PAUSE_ALL, Step.BIND, Step.RESUME_ALL), transition(Lock.Run(42), Lock.Run(null)))
+    }
+
+    @Test
+    fun wifi_is_judged_by_the_network_under_the_vpn() {
+        assertTrue(unmeteredUnder(listOf(NetInfo(vpn = true, notMetered = false), NetInfo(vpn = false, notMetered = true))))
+        assertFalse(unmeteredUnder(listOf(NetInfo(vpn = true, notMetered = true), NetInfo(vpn = false, notMetered = false))))
+        assertFalse(unmeteredUnder(listOf(NetInfo(vpn = true, notMetered = true))))
     }
 }

@@ -114,6 +114,16 @@ class WebViewExt @JvmOverloads constructor(
         }
     }
 
+    /** When the page was last tapped, so a link that forwards to a magnet counts as tapped. */
+    @Volatile
+    var lastTapAt = 0L
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.actionMasked == android.view.MotionEvent.ACTION_UP) lastTapAt = android.os.SystemClock.elapsedRealtime()
+        return super.onTouchEvent(event)
+    }
+
     override fun loadUrl(url: String) {
         lastLoadedUrl = url
         followUrl(url)

@@ -54,3 +54,12 @@ fun shouldStopSharing(uploaded: Long, total: Long, ratio: Float, keepSharing: Bo
     total <= 0 -> false
     else -> uploaded >= total * ratio.toDouble()
 }
+
+/** One of the phone's networks, as far as "Wi-Fi only" cares. */
+data class NetInfo(val vpn: Boolean, val notMetered: Boolean)
+
+/**
+ * Whether the connection under any VPN is free (Wi-Fi). A VPN often calls
+ * itself metered whatever it runs over, so only the networks under it count.
+ */
+fun unmeteredUnder(networks: List<NetInfo>): Boolean = networks.any { !it.vpn && it.notMetered }

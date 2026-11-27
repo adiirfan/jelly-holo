@@ -24,3 +24,9 @@ fun magnetName(uri: String): String? = uri.substringAfter('?', "").split('&')
     ?.substring(3)
     ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
     ?.takeIf { it.isNotBlank() }
+
+/** A magnet starts on a tap, or on a link that forwards to one right after a tap. Never by a page alone. */
+fun allowMagnet(hasGesture: Boolean, isRedirect: Boolean, msSinceTap: Long): Boolean =
+    hasGesture || (isRedirect && msSinceTap in 0..TAP_WINDOW_MS)
+
+private const val TAP_WINDOW_MS = 5_000L

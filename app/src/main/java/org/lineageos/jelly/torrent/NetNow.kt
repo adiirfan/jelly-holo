@@ -16,8 +16,16 @@ fun netNow(context: Context, prefs: TorrentPrefs = TorrentPrefs(context)): NetNo
     val cm = context.getSystemService(ConnectivityManager::class.java)
     @Suppress("DEPRECATION") // the only way to list every network, VPNs included
     val vpn = cm.allNetworks.firstOrNull { cm.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true }
-    val unmetered = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
-        ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) ?: false
+    // Judged by the networks under any VPN: a VPN often calls itself metered over Wi-Fi
+    @Suppress("DEPRECATION")
+    val unmetered = unmeteredUnder(
+        cm.allNetworks.mapNotNull { cm.getNetworkCapabilities(it) }.map {
+            NetInfo(
+                vpn = it.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
+                notMetered = it.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
+            )
+        }
+    )
     val link = vpn?.let { cm.getLinkProperties(it) }
     return NetNow(
         NetState(prefs.torrentsOn, prefs.vpnOnly, prefs.wifiOnly, vpn?.networkHandle, unmetered),

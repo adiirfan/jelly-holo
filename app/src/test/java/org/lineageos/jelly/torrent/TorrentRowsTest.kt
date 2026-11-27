@@ -110,4 +110,20 @@ class TorrentRowsTest {
         assertEquals(true, lowOnSpace(99L * 1024 * 1024))
         assertEquals(false, lowOnSpace(200L * 1024 * 1024))
     }
+
+    @Test
+    fun progress_alone_rewrites_the_file_list_only_when_due() {
+        val saved = applyStat(row, stat(), 5)
+        val more = stat().copy(files = listOf(TorrentFile("ubuntu.iso", 1000, 900, true)))
+        assertEquals(saved.files, applyStat(saved, more, 6, filesDue = false).files)
+        assertEquals(more.files, parseFiles(applyStat(saved, more, 6, filesDue = true).files))
+        val skipped = stat().copy(files = listOf(TorrentFile("ubuntu.iso", 1000, 400, false)))
+        assertEquals(skipped.files, parseFiles(applyStat(saved, skipped, 6, filesDue = false).files))
+    }
+
+    @Test
+    fun a_huge_pack_keeps_a_bounded_file_list() {
+        val many = stat().copy(files = (0 until MAX_LISTED_FILES + 500).map { TorrentFile("f$it", 1, 0, true) })
+        assertEquals(MAX_LISTED_FILES, parseFiles(applyStat(row, many, 5).files).size)
+    }
 }
