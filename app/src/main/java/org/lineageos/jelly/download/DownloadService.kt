@@ -45,6 +45,10 @@ import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
+import kotlinx.coroutines.runBlocking
+import org.lineageos.jelly.database.DownloadDatabase
+import org.lineageos.jelly.downloads.DownloadRecorder
+import org.lineageos.jelly.model.DownloadKind
 
 /**
  * Downloads files in several parts at once (see [ParallelDownload]) straight
@@ -55,10 +59,23 @@ import kotlin.concurrent.thread
 class DownloadService : Service() {
     private val running = ConcurrentHashMap<Int, Job>()
     private val nm by lazy { getSystemService(NotificationManager::class.java) }
+    private val recorder by lazy { DownloadRecorder(DownloadDatabase.get(this).downloadDao()) }
+
+    /** Writes to the Downloads page's record; never stops a download if that fails. */
+    private fun <T> record(block: suspend DownloadRecorder.() -> T): T? =
+        runBlocking { runCatching { recorder.block() }.onFailure { Log.w(AdBlock.TAG, "download record", it) }.getOrNull() }
 
     private class Job(val name: String) {
         @Volatile
         var cancelled = false
+
+        /** Its row on the Downloads page, -1 until written. */
+        @Volatile
+        var record = -1L
+
+        /** Finished or failed has been recorded; anything else at the end is a cancel. */
+        @Volatile
+        var closed = false
 
         /** The job's latest progress notification. */
         @Volatile
@@ -85,8 +102,10 @@ class DownloadService : Service() {
                     intent.getStringExtra(EXTRA_COOKIE)?.let { put("Cookie", it) }
                     intent.getStringExtra(EXTRA_REFERER)?.let { put("Referer", it) }
                 }
+                val mime = intent.getStringExtra(EXTRA_MIME)
                 thread(name = "Download$id") {
-                    run(id, job, url, headers, intent.getStringExtra(EXTRA_MIME))
+                    job.record = record { started(DownloadKind.FILE, name, url, mime) } ?: -1
+                    run(id, job, url, headers, mime)
                 }
             }
 
@@ -102,7 +121,10 @@ class DownloadService : Service() {
                 val referer = intent.getStringExtra(EXTRA_REFERER)
                 val duration = intent.getDoubleExtra(EXTRA_DURATION, -1.0)
                 val private = intent.getBooleanExtra(EXTRA_PRIVATE, false)
-                thread(name = "Download$id") { runStream(id, job, streams, duration, userAgent, referer, private) }
+                thread(name = "Download$id") {
+                    job.record = record { started(DownloadKind.STREAM, name, referer, "video/mp4") } ?: -1
+                    runStream(id, job, streams, duration, userAgent, referer, private)
+                }
             }
 
             ACTION_START_YTDLP -> {
@@ -114,7 +136,10 @@ class DownloadService : Service() {
                 running[id] = job
                 job.note = progress(id, name, 0, -1, 0)
                 startForeground(id, job.note!!, foregroundType())
-                thread(name = "Download$id") { runYtDlp(id, job, y) }
+                thread(name = "Download$id") {
+                    job.record = record { started(DownloadKind.YTDLP, name, y.page, null) } ?: -1
+                    runYtDlp(id, job, y)
+                }
             }
 
             else -> stopIfIdle()
@@ -530,6 +555,7 @@ class DownloadService : Service() {
 
     /** Progress of a conversion, in percent. */
     private fun convertProgress(id: Int, name: String, percent: Int): Notification {
+        running[id]?.record?.takeIf { it >= 0 }?.let { r -> record { converting(r, percent) } }
         val cancel = PendingIntent.getService(
             this, id,
             Intent(this, DownloadService::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_ID, id),
@@ -570,7 +596,11 @@ class DownloadService : Service() {
      */
     @Synchronized
     private fun ended(id: Int) {
-        running.remove(id)
+        running.remove(id)?.let { job ->
+            if (!job.closed && job.record >= 0) {
+                record { if (job.cancelled) cancelled(job.record) else failed(job.record, null) }
+            }
+        }
         val next = running.entries.firstOrNull { it.value.note != null }
         if (next == null) {
             stopIfIdle()
@@ -593,6 +623,7 @@ class DownloadService : Service() {
         .setColor(ContextCompat.getColor(this, R.color.holo_blue))
 
     private fun progress(id: Int, name: String, done: Long, total: Long, speed: Long): Notification {
+        running[id]?.record?.takeIf { it >= 0 }?.let { r -> record { progress(r, done, total, speed) } }
         val cancel = PendingIntent.getService(
             this, id,
             Intent(this, DownloadService::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_ID, id),
@@ -619,6 +650,13 @@ class DownloadService : Service() {
     }
 
     private fun finished(id: Int, name: String, item: Uri, mime: String) {
+        running[id]?.let { job ->
+            job.closed = true
+            if (job.record >= 0) {
+                val size = runCatching { contentResolver.openFileDescriptor(item, "r")?.use { it.statSize } }.getOrNull() ?: -1
+                record { finished(job.record, item.toString(), size) }
+            }
+        }
         val open = PendingIntent.getActivity(
             this, id,
             Intent(Intent.ACTION_VIEW).setDataAndType(item, mime)
@@ -641,6 +679,10 @@ class DownloadService : Service() {
         failed(id, name, getString(R.string.download_failed, e.message ?: e.javaClass.simpleName))
 
     private fun failed(id: Int, name: String, text: String) {
+        running[id]?.let { job ->
+            job.closed = true
+            if (job.record >= 0) record { failed(job.record, text) }
+        }
         nm.notify(
             id + DONE_OFFSET,
             base(name)

@@ -131,6 +131,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import kotlin.reflect.cast
+import org.lineageos.jelly.database.DownloadDatabase
+import org.lineageos.jelly.downloads.DownloadRecorder
 
 class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     // View model
@@ -1180,7 +1182,13 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         CookieManager.getInstance().getCookie(url)?.takeUnless { it.isEmpty() }?.let {
             request.addRequestHeader("Cookie", it)
         }
-        getSystemService(DownloadManager::class.java).enqueue(request)
+        val dmId = getSystemService(DownloadManager::class.java).enqueue(request)
+        val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(MimeTypeMap.getFileExtensionFromUrl(url))
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                DownloadRecorder(DownloadDatabase.get(this@MainActivity).downloadDao()).dmStarted(dmId, fileName, url, mime)
+            }
+        }
     }
 
     override fun showSheetMenu(url: String, shouldAllowDownload: Boolean) {
