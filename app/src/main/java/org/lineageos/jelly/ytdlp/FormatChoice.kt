@@ -24,6 +24,18 @@ const val SOUND_ONLY = "Sound only"
 
 private fun isMp4(f: Format) = f.protocol.startsWith("m3u8") || f.ext in setOf("mp4", "m4a", "m4v", "mov")
 private fun isWebm(f: Format) = f.ext == "webm"
+/** 10- or 12-bit pictures (HDR): the conversion copies 8-bit frames only. */
+internal fun deepColour(codec: String?): Boolean {
+    val c = codec?.lowercase() ?: return false
+    val p = c.split('.')
+    return when {
+        c.startsWith("av01") -> p.getOrNull(3)?.let { it == "10" || it == "12" } == true
+        c.startsWith("vp09") -> p.getOrNull(1) in setOf("02", "03") || p.getOrNull(3)?.let { it == "10" || it == "12" } == true
+        c.startsWith("hvc1") || c.startsWith("hev1") -> p.getOrNull(1) == "2"
+        else -> false
+    }
+}
+
 private fun mimeOf(codec: String?) = codec?.takeIf { it.isNotEmpty() }?.let { HlsPlaylist.mimeOf(it) }
 
 /**
@@ -99,7 +111,8 @@ fun options(
     if (list.isEmpty()) {
         // The biggest size the encoder takes, so nothing needs shrinking
         val convertible = pictures.filter { f ->
-            mimeOf(f.vcodec) != null && (f.width == null || f.height == null || encodable(f.width, f.height))
+            mimeOf(f.vcodec) != null && !deepColour(f.vcodec) &&
+                (f.width == null || f.height == null || encodable(f.width, f.height))
         }
         list = rows(convertible, mp4Sound ?: anySound, Output.CONVERT).take(1)
     }

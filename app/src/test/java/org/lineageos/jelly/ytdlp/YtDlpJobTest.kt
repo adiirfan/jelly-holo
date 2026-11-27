@@ -65,5 +65,8 @@ class YtDlpJobTest {
         assertEquals("song.m4a", fileName("song", Output.AUDIO, "m4a"))
         assertEquals("song.webm", fileName("song", Output.AUDIO, "webm"))
         assertEquals("song.m4a", fileName("song", Output.AUDIO, "mp4"))
+        // An emoji across the 80-character cut is dropped whole, never halved
+        val name = fileName("x".repeat(79) + "🐈tail", Output.MP4, "mp4")
+        assertEquals("x".repeat(79) + ".mp4", name)
     }
 }

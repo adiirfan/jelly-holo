@@ -22,6 +22,8 @@ fun problemOf(stderr: String): Problem {
     val line = stderr.lineSequence().lastOrNull { it.startsWith("ERROR:") }?.lowercase() ?: return Problem.OTHER
     return when {
         "drm" in line -> Problem.PROTECTED
+        // Instagram: "not available, rate-limit reached or login required"
+        "login required" in line -> Problem.SIGN_IN
         "private video" in line || "not available" in line || "unavailable" in line -> Problem.UNAVAILABLE
         "is live" in line || "live event" in line -> Problem.LIVE
         listOf("authentication", "sign in", "log in", "login").any { it in line } -> Problem.SIGN_IN

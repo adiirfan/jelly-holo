@@ -13,7 +13,11 @@ fun cookieDomain(pageUrl: String): String? {
     val uri = runCatching { URI(pageUrl) }.getOrNull() ?: return null
     if (uri.scheme?.lowercase() !in setOf("http", "https")) return null
     val host = uri.host?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
-    return "." + host.removePrefix("www.").removePrefix("m.")
+    // Drop a leading "www." or "m.", but never down to a bare top-level domain
+    val site = listOf("www.", "m.").fold(host) { h, p ->
+        if (h.startsWith(p) && '.' in h.removePrefix(p)) h.removePrefix(p) else h
+    }
+    return ".$site"
 }
 
 /**

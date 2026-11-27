@@ -54,7 +54,11 @@ class YtDlpJob(
  * For sound only, [ext] is the sound format's own extension.
  */
 fun fileName(title: String, output: Output, ext: String?): String {
-    val base = title.replace(Regex("""[\\/:*?"<>|\p{Cntrl}]"""), " ").trim().take(80).trim().ifEmpty { "video" }
+    val clean = title.replace(Regex("""[\\/:*?"<>|\p{Cntrl}]"""), " ").trim()
+    // At most 80 characters, never cutting an emoji (two UTF-16 units) in half
+    var end = minOf(clean.length, 80)
+    if (end < clean.length && Character.isHighSurrogate(clean[end - 1])) end--
+    val base = clean.substring(0, end).trim().ifEmpty { "video" }
     val suffix = when (output) {
         Output.MP4, Output.CONVERT -> "mp4"
         Output.WEBM -> "webm"

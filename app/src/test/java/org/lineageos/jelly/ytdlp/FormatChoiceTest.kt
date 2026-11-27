@@ -159,6 +159,18 @@ class FormatChoiceTest {
     }
 
     @Test
+    fun conversion_skips_ten_bit_pictures() {
+        val info = YtDlpInfo.parse(
+            """{"title":"t","duration":10,"webpage_url":"https://example.invalid/","formats":[
+               {"format_id":"hdr","url":"https://example.invalid/hdr","protocol":"https","ext":"mp4","vcodec":"av01.0.12M.10","acodec":"none","width":2560,"height":1440,"tbr":5000},
+               {"format_id":"sdr","url":"https://example.invalid/sdr","protocol":"https","ext":"mp4","vcodec":"av01.0.08M.08","acodec":"none","width":1920,"height":1080,"tbr":2000}]}"""
+        )
+        val o = options(info, playable = xperia).first()
+        assertEquals(Output.CONVERT, o.output)
+        assertEquals("sdr", o.video!!.id)
+    }
+
+    @Test
     fun unknown_size_without_a_bitrate_stays_unknown() {
         val info = YtDlpInfo.parse(
             """{"title":"t","duration":10,"webpage_url":"https://example.invalid/","is_live":true,

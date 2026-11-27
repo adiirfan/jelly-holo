@@ -55,10 +55,24 @@ class YtDlpRuntimeTest {
     @Test
     fun runWithLimit_kills_on_stall() {
         val (r, ms) = timed {
-            runWithLimit(ProcessBuilder("sleep", "30"), Long.MAX_VALUE, { false }, stallMs = 300, growing = { 0L })
+            runWithLimit(ProcessBuilder("sleep", "30"), Long.MAX_VALUE, { false }, stallMs = 300, growing = { 5L })
         }
         assertTrue(r.timedOut)
         assertTrue("took $ms ms", ms < 2000)
+    }
+
+    @Test
+    fun runWithLimit_stall_clock_starts_at_the_first_byte() {
+        // yt-dlp looks the video up before writing anything: that's not a stall
+        val start = System.nanoTime()
+        val (r, ms) = timed {
+            runWithLimit(
+                ProcessBuilder("sleep", "30"), 1_500, { false }, stallMs = 300,
+                growing = { if (System.nanoTime() - start > 1_000_000_000) 5L else 0L },
+            )
+        }
+        assertTrue(r.timedOut)
+        assertTrue("stopped as a stall before any byte, after $ms ms", ms >= 1_200)
     }
 
     @Test

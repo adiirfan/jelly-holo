@@ -24,6 +24,9 @@ class YtDlpCookiesTest {
         assertEquals(".old.reddit.com", cookieDomain("https://old.reddit.com/"))
         assertEquals(".instagram.com", cookieDomain("https://instagram.com/reel/x/"))
         assertNull(cookieDomain("file:///x"))
+        // Never a whole top-level domain
+        assertEquals(".m.me", cookieDomain("https://m.me/x"))
+        assertEquals(".www.com", cookieDomain("https://www.com/"))
         assertNull(cookieDomain("not a url"))
     }
 

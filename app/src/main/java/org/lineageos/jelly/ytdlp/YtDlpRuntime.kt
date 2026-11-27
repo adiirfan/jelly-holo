@@ -73,8 +73,9 @@ fun runWithLimit(
         } else if ((now - start) / 1_000_000 > limitMs) {
             timedOut = true
         } else if (stallMs != null && growing != null) {
+            // The stall clock starts at the first byte: looking the video up comes first
             val size = growing()
-            if (size != lastSize) {
+            if (size != lastSize || size == 0L) {
                 lastSize = size
                 lastChange = now
             } else if ((now - lastChange) / 1_000_000 > stallMs) {

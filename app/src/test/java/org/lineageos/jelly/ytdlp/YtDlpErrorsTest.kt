@@ -51,6 +51,12 @@ class YtDlpErrorsTest {
     )
 
     @Test
+    fun instagram_rate_limit_or_login_means_sign_in() = assertEquals(
+        Problem.SIGN_IN,
+        problemOf("ERROR: [Instagram] x: Requested content is not available, rate-limit reached or login required. Use --cookies"),
+    )
+
+    @Test
     fun anything_else_is_other() = assertEquals(Problem.OTHER, problemOf("ERROR: something odd"))
 
     @Test
