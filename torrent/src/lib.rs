@@ -18,7 +18,7 @@ use anyhow::Context;
 use librqbit::{
     AddTorrent, AddTorrentOptions, AddTorrentResponse, CreateTorrentOptions, DhtSessionConfig, ListenerMode,
     ListenerOptions, ManagedTorrent, Session, SessionOptions, SessionPersistenceConfig, TorrentStatsState,
-    api::TorrentIdOrHash, limits::LimitsConfig, spawn_utils::BlockingSpawner,
+    api::TorrentIdOrHash, dht::DhtPersistenceConfig, limits::LimitsConfig, spawn_utils::BlockingSpawner,
 };
 use serde::Serialize;
 
@@ -105,11 +105,14 @@ impl Engine {
             .enable_all()
             .build()?;
         let opts = SessionOptions {
-            dht: if cfg.dht {
-                Some(DhtSessionConfig::default())
-            } else {
-                None
-            },
+            dht: cfg.dht.then(|| DhtSessionConfig {
+                // Its own default lives under the home folder, which Android apps don't have
+                persistence: Some(DhtPersistenceConfig {
+                    config_filename: Some(cfg.state_dir.join("dht.json")),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
             persistence: Some(SessionPersistenceConfig::Json { folder: Some(cfg.state_dir.clone()) }),
             fastresume: true,
             disable_trackers: !cfg.trackers,
