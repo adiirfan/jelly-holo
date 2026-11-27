@@ -6,6 +6,7 @@
 package org.lineageos.jelly.torrent
 
 import org.json.JSONArray
+import org.json.JSONObject
 import org.lineageos.jelly.model.DownloadItem
 import org.lineageos.jelly.model.DownloadState
 
@@ -57,6 +58,22 @@ fun parseStats(json: String): List<TorrentStat> {
     }
 }
 
+/** A torrent's files for keeping with its row. */
+fun encodeFiles(files: List<TorrentFile>): String = JSONArray(
+    files.map { f ->
+        JSONObject().put("name", f.name).put("size", f.size).put("done", f.done).put("selected", f.selected)
+    }
+).toString()
+
+fun parseFiles(json: String?): List<TorrentFile> {
+    if (json.isNullOrEmpty()) return emptyList()
+    val a = runCatching { JSONArray(json) }.getOrNull() ?: return emptyList()
+    return (0 until a.length()).map { j ->
+        val f = a.getJSONObject(j)
+        TorrentFile(f.getString("name"), f.getLong("size"), f.getLong("done"), f.getBoolean("selected"))
+    }
+}
+
 /** The page's row for a torrent the engine is running. */
 fun applyStat(row: DownloadItem, s: TorrentStat, now: Long): DownloadItem {
     val state = when {
@@ -79,6 +96,7 @@ fun applyStat(row: DownloadItem, s: TorrentStat, now: Long): DownloadItem {
         upBps = if (moving) s.upBps else 0,
         peers = if (moving) s.peers else 0,
         error = if (state == DownloadState.FAILED) s.error else null,
+        files = if (s.files.isEmpty()) row.files else encodeFiles(s.files),
         updated = now,
     )
 }

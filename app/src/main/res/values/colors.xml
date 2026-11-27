@@ -32,4 +32,7 @@
     <color name="holo_tab_title">#F0F0F0</color>
     <color name="holo_category_rule">#8033B5E5</color>
     <color name="holo_snackbar">#333333</color>
+    <!-- Torrents strip: running, waiting, off -->
+    <color name="torrent_ok">#99CC00</color>
+    <color name="torrent_wait">#FFBB33</color>
 </resources>

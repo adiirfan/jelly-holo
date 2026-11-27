@@ -73,10 +73,20 @@ class DownloadsAdapter(
                 i.totalBytes > 0 -> (i.doneBytes * 1000 / i.totalBytes).toInt()
                 else -> 0
             }
-            action.setImageResource(if (active) R.drawable.ic_close_plain else R.drawable.ic_more_vert)
-            action.contentDescription = action.context.getString(
-                if (active) R.string.downloads_cancel else R.string.downloads_more
-            )
+            val (icon, label) = if (i.kind == DownloadKind.TORRENT) {
+                when (torrentButton(i.state)) {
+                    TorrentButton.PAUSE -> R.drawable.ic_torrent_pause to R.string.torrent_pause
+                    TorrentButton.RESUME -> R.drawable.ic_torrent_play to R.string.torrent_resume
+                    TorrentButton.STOP_SHARING -> R.drawable.ic_torrent_stop to R.string.torrent_stop_sharing
+                    TorrentButton.MENU -> R.drawable.ic_more_vert to R.string.downloads_more
+                }
+            } else if (active) {
+                R.drawable.ic_close_plain to R.string.downloads_cancel
+            } else {
+                R.drawable.ic_more_vert to R.string.downloads_more
+            }
+            action.setImageResource(icon)
+            action.contentDescription = action.context.getString(label)
             action.setOnClickListener { onAction(i, it) }
             itemView.setOnClickListener { onTap(i) }
             itemView.isActivated = i.id == highlight

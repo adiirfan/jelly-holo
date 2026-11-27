@@ -36,6 +36,7 @@ class FakeDownloadDao : DownloadDao {
         rows.remove(id)
     }
     override suspend fun activeDm() = rows.values.filter { it.dmId >= 0 }
+    override fun watch(id: Long): Flow<DownloadItem?> = MutableStateFlow(rows[id])
     override suspend fun torrents() = rows.values.filter { it.kind == DownloadKind.TORRENT }
     override suspend fun pendingTorrents() = torrents().filter { it.infoHash == null }
 }

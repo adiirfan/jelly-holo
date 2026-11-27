@@ -30,6 +30,9 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads WHERE id = :id")
     suspend fun byId(id: Long): DownloadItem?
 
+    @Query("SELECT * FROM downloads WHERE id = :id")
+    fun watch(id: Long): Flow<DownloadItem?>
+
     @Query("SELECT * FROM downloads WHERE infoHash = :hash LIMIT 1")
     suspend fun byInfoHash(hash: String): DownloadItem?
 

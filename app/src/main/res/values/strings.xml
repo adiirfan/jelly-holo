@@ -306,6 +306,64 @@
     <string name="torrent_view">View</string>
     <string name="torrent_unnamed">Torrent</string>
     <string name="torrent_fetch_failed">Couldn\'t get the torrent file</string>
+    <string name="torrent_settings_title">Torrent settings</string>
+    <string name="torrent_pause">Pause</string>
+    <string name="torrent_resume">Resume</string>
+    <string name="torrent_stop_sharing">Stop sharing</string>
+    <string name="torrent_remove">Remove</string>
+    <string name="torrent_remove_title">Remove %s?</string>
+    <string name="torrent_remove_message">It leaves the list. Its files can stay in Downloads.</string>
+    <string name="torrent_keep_files">Keep files</string>
+    <string name="torrent_delete_files">Delete files</string>
+    <string name="torrent_files_header">Files · tap to skip</string>
+    <string name="torrent_no_files_yet">Getting the list of files…</string>
+    <string name="torrent_keep_one">Keep at least one file</string>
+    <string name="torrent_file_skipped">Skipped · %s</string>
+    <string name="torrent_file_done">%s · done</string>
+    <string name="torrent_file_progress">%1$s · %2$d%%</string>
+    <string name="torrent_info">Info</string>
+    <string name="torrent_saved_in">Saved in</string>
+    <string name="torrent_saved_in_value">Download/Torrents</string>
+    <string name="torrent_added_at">Added</string>
+    <string name="torrent_from">From</string>
+    <string name="torrent_from_magnet">magnet link</string>
+    <string name="torrent_from_file">.torrent file</string>
+    <string name="torrent_magnet">Magnet link</string>
+    <string name="torrent_copy">Copy</string>
+    <string name="torrent_copied">Magnet link copied</string>
+    <string name="torrent_set_on_summary">Off stops every torrent: no downloading, no sharing</string>
+    <string name="torrent_set_vpn">VPN</string>
+    <string name="torrent_set_vpn_only">Only over VPN</string>
+    <string name="torrent_set_vpn_only_summary">Torrents pause the moment the VPN drops, so nothing goes out over Wi-Fi or mobile data</string>
+    <string name="torrent_set_vpn_none">No VPN connected</string>
+    <string name="torrent_set_vpn_up">VPN connected · %s</string>
+    <string name="torrent_set_port_category">Incoming connections (port forwarding)</string>
+    <string name="torrent_set_port">Port from your VPN</string>
+    <string name="torrent_set_port_help">The port your VPN\'s port-forwarding page gives you, from 1024 to 65535. Leave it empty for none.</string>
+    <string name="torrent_set_port_none">None: torrents still work, fewer people can reach you</string>
+    <string name="torrent_set_port_bad">Use a number from 1024 to 65535, or leave it empty</string>
+    <string name="torrent_set_sharing">Sharing and data</string>
+    <string name="torrent_set_keep_sharing">Keep sharing when done</string>
+    <string name="torrent_set_ratio">Stop sharing at</string>
+    <string name="torrent_set_wifi_only">Wi-Fi only</string>
+    <string name="torrent_set_wifi_only_summary">Torrents wait while on mobile data</string>
+    <string name="torrent_set_down_limit">Download speed limit</string>
+    <string name="torrent_set_up_limit">Upload speed limit</string>
+    <string name="torrent_set_limit_help">In kB a second. Leave it empty for no limit.</string>
+    <string name="torrent_set_no_limit">No limit</string>
+    <string name="torrent_set_limit_value">%d kB/s</string>
+    <string-array name="torrent_ratio_names">
+        <item>Shared 0.5×</item>
+        <item>Shared 1×</item>
+        <item>Shared 2×</item>
+        <item>Shared 5×</item>
+    </string-array>
+    <string-array name="torrent_ratio_values" translatable="false">
+        <item>0.5</item>
+        <item>1.0</item>
+        <item>2.0</item>
+        <item>5.0</item>
+    </string-array>
     <string name="download_starting">Starting…</string>
     <string name="download_progress">%1$s of %2$s · %3$s/s</string>
     <!-- Downloads page -->

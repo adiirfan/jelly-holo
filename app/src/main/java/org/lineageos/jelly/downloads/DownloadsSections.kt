@@ -6,6 +6,7 @@
 package org.lineageos.jelly.downloads
 
 import org.lineageos.jelly.model.DownloadItem
+import org.lineageos.jelly.model.DownloadState
 
 /** One line of the Downloads page: a section title or a download. */
 sealed class Row {
@@ -15,7 +16,8 @@ sealed class Row {
 
 /** Running downloads under "Active" first, then the rest under "Finished". */
 fun sections(items: List<DownloadItem>): List<Row> {
-    val (active, finished) = items.partition { DownloadText.isActive(it.state) }
+    // A torrent that is done but still sharing is finished as far as the user is concerned
+    val (active, finished) = items.partition { DownloadText.isActive(it.state) && it.state != DownloadState.SHARING }
     return buildList {
         if (active.isNotEmpty()) {
             add(Row.Header(true))

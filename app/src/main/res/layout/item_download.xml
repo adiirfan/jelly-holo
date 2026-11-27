@@ -4,6 +4,7 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/downloadRow"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -60,5 +61,6 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:background="?selectableItemBackgroundBorderless"
-        android:src="@drawable/ic_close_plain" />
+        android:src="@drawable/ic_close_plain"
+        app:tint="?attr/colorControlNormal" />
 </LinearLayout>

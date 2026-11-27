@@ -90,4 +90,11 @@ class TorrentRowsTest {
         }
         assertEquals(DownloadState.WAITING_VPN, waitingRow(row.copy(state = DownloadState.SHARING), Lock.WaitVpn, 5).state)
     }
+
+    @Test
+    fun the_file_list_is_kept_with_the_row() {
+        val r = applyStat(row, stat(), 5)
+        assertEquals(stat().files, parseFiles(r.files))
+        assertEquals(emptyList<TorrentFile>(), parseFiles(null))
+    }
 }

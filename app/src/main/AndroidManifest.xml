@@ -117,6 +117,15 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <activity
+            android:name=".downloads.TorrentDetailActivity"
+            android:theme="@style/Theme.Jelly.NoActionBar" />
+
+        <activity
+            android:name=".downloads.TorrentSettingsActivity"
+            android:label="@string/torrent_settings_title"
+            android:theme="@style/Theme.Jelly.Settings" />
+
         <!-- Magnet links from other apps start a torrent without opening a window -->
         <activity
             android:name=".torrent.TorrentLinkActivity"

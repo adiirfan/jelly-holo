@@ -42,4 +42,6 @@ data class DownloadItem(
     val updated: Long,
     /** Android DownloadManager's id, -1 when not through it. */
     val dmId: Long = -1,
+    /** Torrents: their files as JSON (see TorrentRows.encodeFiles). */
+    val files: String? = null,
 )

@@ -35,4 +35,13 @@ class DownloadsSectionsTest {
         val rows = sections(listOf(item(1, DownloadState.FAILED)))
         assertEquals(listOf(Row.Header(false), Row.Entry(item(1, DownloadState.FAILED))), rows)
     }
+
+    @Test
+    fun a_finished_torrent_still_sharing_is_listed_as_finished() {
+        val sharing = DownloadItem(
+            id = 1, kind = DownloadKind.TORRENT, name = "a",
+            state = DownloadState.SHARING, created = 1, updated = 1,
+        )
+        assertEquals(listOf(Row.Header(false), Row.Entry(sharing)), sections(listOf(sharing)))
+    }
 }

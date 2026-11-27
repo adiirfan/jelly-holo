@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <SwitchPreference
+        android:key="on"
+        android:summary="@string/torrent_set_on_summary"
+        android:title="@string/torrent_note_title" />
+
+    <PreferenceCategory android:title="@string/torrent_set_vpn">
+
+        <SwitchPreference
+            android:key="vpn_only"
+            android:summary="@string/torrent_set_vpn_only_summary"
+            android:title="@string/torrent_set_vpn_only" />
+
+        <Preference
+            android:key="vpn_line"
+            android:selectable="false"
+            android:title="@string/torrent_set_vpn_none" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/torrent_set_port_category">
+
+        <EditTextPreference
+            android:dialogMessage="@string/torrent_set_port_help"
+            android:key="port"
+            android:title="@string/torrent_set_port" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/torrent_set_sharing">
+
+        <SwitchPreference
+            android:key="keep_sharing"
+            android:title="@string/torrent_set_keep_sharing" />
+
+        <ListPreference
+            android:dependency="keep_sharing"
+            android:entries="@array/torrent_ratio_names"
+            android:entryValues="@array/torrent_ratio_values"
+            android:key="ratio"
+            android:title="@string/torrent_set_ratio"
+            app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreference
+            android:key="wifi_only"
+            android:summary="@string/torrent_set_wifi_only_summary"
+            android:title="@string/torrent_set_wifi_only" />
+
+        <EditTextPreference
+            android:dialogMessage="@string/torrent_set_limit_help"
+            android:key="down_limit"
+            android:title="@string/torrent_set_down_limit" />
+
+        <EditTextPreference
+            android:dialogMessage="@string/torrent_set_limit_help"
+            android:key="up_limit"
+            android:title="@string/torrent_set_up_limit" />
+    </PreferenceCategory>
+</PreferenceScreen>
