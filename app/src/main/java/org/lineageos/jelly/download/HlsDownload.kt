@@ -25,6 +25,8 @@ import kotlin.math.max
 class HlsDownload(
     /** Headers for one address: the page's cookies for it, Referer, User-Agent. */
     private val headersFor: (String) -> Map<String, String>,
+    /** Whether the phone plays a format (a media type) well; the best such quality is chosen. */
+    private val playable: (String) -> Boolean = { true },
     private val threads: Int = 4,
     private val timeoutMs: Int = 20_000,
     private val retries: Int = 3,
@@ -61,7 +63,7 @@ class HlsDownload(
                 is HlsPlaylist.Master -> {
                     covered += list.variants.map { it.uri }
                     covered += list.audio.mapNotNull { it.uri }
-                    val best = list.best() ?: continue
+                    val best = list.best(playable) ?: continue
                     val video = runCatching { fetchPlaylist(best.video) }.getOrNull() as? HlsPlaylist.Media ?: continue
                     val audio = best.audio?.let { runCatching { fetchPlaylist(it) }.getOrNull() as? HlsPlaylist.Media }
                     if (best.audio != null && audio == null) continue

@@ -6,8 +6,9 @@
 package org.lineageos.jelly.download
 
 /**
- * The Rust stream joiner (blocker/src/remux): TS pieces to one MP4, every
+ * The Rust stream joiner (blocker/src/remux): stream pieces to one MP4, every
  * frame at its own time, far faster than Android's MediaExtractor/MediaMuxer.
+ * TS pieces (H.264 + AAC), or fragmented MP4 pieces of any picture format.
  */
 object NativeRemux {
     const val DONE = 0
@@ -18,9 +19,13 @@ object NativeRemux {
         System.loadLibrary("jellyblock")
     }
 
-    /** Writes [video] (and the separate [audio]) as an MP4 to [fd], which the caller keeps. */
-    fun tsToMp4(video: String, audio: String?, fd: Int): Int = nativeTsToMp4(video, audio, fd)
+    /**
+     * Writes [video] (and the separate [audio]) as an MP4 to [fd], which the
+     * caller keeps. [fragmented]: the pieces are fragmented MP4, not TS.
+     */
+    fun join(video: String, audio: String?, fragmented: Boolean, fd: Int): Int =
+        nativeJoin(video, audio, fragmented, fd)
 
     @JvmStatic
-    private external fun nativeTsToMp4(video: String, audio: String?, fd: Int): Int
+    private external fun nativeJoin(video: String, audio: String?, fragmented: Boolean, fd: Int): Int
 }

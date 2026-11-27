@@ -2,10 +2,12 @@
 //! sound) into one MP4 without re-encoding. Every picture and sound frame
 //! keeps its own time from the stream, so the two stay in step exactly.
 //!
-//! Anything else (H.265, other sound formats, fragmented MP4 pieces) is
-//! refused with [`RemuxError::Unsupported`] and left to Android's tools.
+//! TS pieces with anything else (H.265, other sound formats) are refused
+//! with [`RemuxError::Unsupported`] and left to Android's tools. Fragmented
+//! MP4 pieces, whatever their picture format, go through [`fmp4_to_mp4`].
 
 pub mod aac;
+pub mod fmp4;
 pub mod h264;
 pub mod mp4;
 pub mod ts;
@@ -19,7 +21,8 @@ use ts::{Demux, Kind, Pes};
 
 #[derive(Debug)]
 pub enum RemuxError {
-    NotTs,
+    /// Not the kind of file this joiner reads
+    NotMine,
     Unsupported(String),
     NoPicture,
     Io(io::Error),
@@ -34,7 +37,7 @@ impl From<io::Error> for RemuxError {
 impl fmt::Display for RemuxError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            RemuxError::NotTs => write!(f, "not an MPEG-TS stream"),
+            RemuxError::NotMine => write!(f, "not a stream this joiner reads"),
             RemuxError::Unsupported(what) => write!(f, "unsupported: {what}"),
             RemuxError::NoPicture => write!(f, "no picture found"),
             RemuxError::Io(e) => write!(f, "{e}"),
@@ -48,6 +51,8 @@ pub struct Stats {
     pub sounds: usize,
 }
 
+pub use fmp4::fmp4_to_mp4;
+
 /// The width and height an H.264 SPS unit (header byte included) describes.
 pub fn h264_picture_size(sps: &[u8]) -> Option<(u32, u32)> {
     h264::picture_size(sps)
@@ -57,7 +62,7 @@ pub fn h264_picture_size(sps: &[u8]) -> Option<(u32, u32)> {
 /// stream in `audio`) to `out` as an MP4.
 pub fn ts_to_mp4<W: Write + Seek>(video: &Path, audio: Option<&Path>, out: W) -> Result<Stats, RemuxError> {
     if !ts::looks_like_ts(video)? || audio.map(ts::looks_like_ts).transpose()? == Some(false) {
-        return Err(RemuxError::NotTs);
+        return Err(RemuxError::NotMine);
     }
     let mut j = Joiner::new(Writer::new(BufWriter::with_capacity(1 << 20, out))?);
     let mut vd = Demux::open(video)?;
@@ -235,7 +240,7 @@ impl<W: Write + Seek> Joiner<W> {
         }
         let shown = (pts - self.first_dts).max(0) as u64;
         track.times.push(time);
-        track.offsets.push(shown.saturating_sub(time) as u32);
+        track.offsets.push(shown.saturating_sub(time) as i32);
         track.sizes.push(sample.len() as u32);
         track.sync.push(key);
         self.w.sample(&mut self.tracks, v, &sample)?;

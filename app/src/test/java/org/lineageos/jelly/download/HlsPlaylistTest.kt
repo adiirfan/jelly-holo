@@ -120,6 +120,49 @@ class HlsPlaylistTest {
         assertEquals(1720L until 2220L, p.segments[1].range)
     }
 
+    private val choices = """
+        #EXTM3U
+        #EXT-X-STREAM-INF:BANDWIDTH=9000000,CODECS="av01.0.08M.08,mp4a.40.2"
+        av1.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=7000000,CODECS="hvc1.1.6.L120.90,mp4a.40.2"
+        hevc.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=5000000,CODECS="avc1.640028,mp4a.40.2"
+        avc.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=900000,CODECS="avc1.4d401e,mp4a.40.2"
+        small.m3u8
+    """.trimIndent()
+
+    @Test
+    fun bestSkipsFormatsThePhoneCantPlay() {
+        val p = HlsPlaylist.parse(choices, base) as HlsPlaylist.Master
+        val noAv1 = p.best { mime -> mime != "video/av01" }!!
+        assertEquals("https://cdn.example.com/v/42/hevc.m3u8", noAv1.video)
+        val avcOnly = p.best { mime -> mime == "video/avc" || mime.startsWith("audio/") }!!
+        assertEquals("https://cdn.example.com/v/42/avc.m3u8", avcOnly.video)
+    }
+
+    @Test
+    fun whenNothingFitsTheBestIsStillChosen() {
+        val p = HlsPlaylist.parse(choices, base) as HlsPlaylist.Master
+        assertEquals("https://cdn.example.com/v/42/av1.m3u8", p.best { false }!!.video)
+    }
+
+    @Test
+    fun formatNamesBecomeTypes() {
+        assertEquals("video/avc", HlsPlaylist.mimeOf("avc1.640028"))
+        assertEquals("video/avc", HlsPlaylist.mimeOf("avc3.4d401e"))
+        assertEquals("video/hevc", HlsPlaylist.mimeOf("hvc1.1.6.L120.90"))
+        assertEquals("video/hevc", HlsPlaylist.mimeOf("hev1.2.4.L153"))
+        assertEquals("video/x-vnd.on2.vp9", HlsPlaylist.mimeOf("vp09.00.40.08"))
+        assertEquals("video/av01", HlsPlaylist.mimeOf("av01.0.08M.08"))
+        assertEquals("video/dolby-vision", HlsPlaylist.mimeOf("dvh1.05.06"))
+        assertEquals("audio/mp4a-latm", HlsPlaylist.mimeOf("mp4a.40.2"))
+        assertEquals("audio/eac3", HlsPlaylist.mimeOf("ec-3"))
+        assertEquals("audio/ac3", HlsPlaylist.mimeOf("ac-3"))
+        assertEquals("audio/opus", HlsPlaylist.mimeOf("Opus"))
+        assertNull(HlsPlaylist.mimeOf("wvtt"))
+    }
+
     @Test
     fun notAPlaylist() {
         assertNull(HlsPlaylist.parse("<html>nope</html>", base))

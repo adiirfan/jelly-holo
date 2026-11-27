@@ -194,6 +194,7 @@ class DownloadService : Service() {
                     cookies.getCookie(url)?.takeIf { it.isNotEmpty() }?.let { put("Cookie", it) }
                 }
             },
+            playable = CodecSupport::playable,
             log = log,
         )
         val started = SystemClock.elapsedRealtime()
@@ -221,13 +222,14 @@ class DownloadService : Service() {
 
             item = newItem(job.name, "video/mp4")
             val joinStart = SystemClock.elapsedRealtime()
-            // TS pieces: the Rust joiner. Anything it doesn't write (or a failure)
+            // The Rust joiner first. Anything it doesn't write (or a failure)
             // goes to Android's own tools, on a fresh (emptied) file.
             var how = "rust"
-            var joined = plan.video.init == null && plan.audio?.init == null &&
+            val fragmented = plan.video.init != null
+            var joined = (plan.audio == null || (plan.audio.init != null) == fragmented) &&
                 contentResolver.openFileDescriptor(item, "rwt").use {
-                    NativeRemux.tsToMp4(video.path, audio?.path, it!!.fd)
-                }.also { log("rust join: $it") } == NativeRemux.DONE
+                    NativeRemux.join(video.path, audio?.path, fragmented, it!!.fd)
+                }.also { log("rust join (fragmented $fragmented): $it") } == NativeRemux.DONE
             if (!joined) {
                 how = "android"
                 joined = contentResolver.openFileDescriptor(item, "rwt").use { Remux.toMp4(video, audio, it!!.fileDescriptor, log) }

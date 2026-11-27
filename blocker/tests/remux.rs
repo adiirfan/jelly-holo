@@ -5,7 +5,7 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use jellyblock::remux::{h264_picture_size, ts_to_mp4, RemuxError};
+use jellyblock::remux::{fmp4_to_mp4, h264_picture_size, ts_to_mp4, RemuxError};
 
 fn dir(name: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("jhremux-{}-{name}", std::process::id()));
@@ -214,5 +214,126 @@ fn something_that_is_not_a_stream_is_refused() {
     let d = dir("junk");
     let f = d.join("junk.ts");
     fs::write(&f, b"<html>not a video</html>".repeat(40)).unwrap();
-    assert!(matches!(remux(&f, None, &d.join("out.mp4")), Err(RemuxError::NotTs)));
+    assert!(matches!(remux(&f, None, &d.join("out.mp4")), Err(RemuxError::NotMine)));
+}
+
+// ---- Fragmented MP4 pieces (the newer HLS format) ----
+
+/// An fMP4 HLS stream of [secs] seconds made with [video] settings; returns the
+/// joined picture file (init piece + pieces) and, when [separate], the sound file.
+fn make_fmp4(d: &Path, video: &[&str], separate: bool, secs: &str) -> (PathBuf, Option<PathBuf>) {
+    let mut a: Vec<&str> = vec![];
+    a.extend(PICTURE);
+    a.extend(SOUND);
+    a.extend(["-t", secs, "-map", "0:v", "-map", "1:a"]);
+    a.extend(video);
+    a.extend(AAC);
+    let seg = d.join("s%v_%03d.m4s");
+    let list = d.join("p%v.m3u8");
+    let map = if separate { "v:0,agroup:aud a:0,agroup:aud" } else { "v:0,a:0" };
+    a.extend(["-f", "hls", "-hls_segment_type", "fmp4", "-hls_time", "2", "-hls_playlist_type", "vod",
+        "-hls_fmp4_init_filename", "init_%v.mp4", "-hls_segment_filename", seg.to_str().unwrap(),
+        "-master_pl_name", "master.m3u8", "-var_stream_map", map, list.to_str().unwrap()]);
+    ffmpeg(&a);
+    let join = |v: u32| {
+        let mut pieces: Vec<PathBuf> = fs::read_dir(d).unwrap().map(|e| e.unwrap().path())
+            .filter(|p| p.file_name().unwrap().to_str().unwrap().starts_with(&format!("s{v}_"))).collect();
+        pieces.sort();
+        // With a single stream ffmpeg leaves "%v" in the init piece's name
+        let init = [d.join(format!("init_{v}.mp4")), d.join("init_%v.mp4")].into_iter().find(|p| p.exists()).unwrap();
+        let mut all = fs::read(init).unwrap();
+        for p in pieces {
+            all.extend(fs::read(p).unwrap());
+        }
+        let out = d.join(format!("joined_{v}.mp4"));
+        fs::write(&out, all).unwrap();
+        out
+    };
+    (join(0), if separate { Some(join(1)) } else { None })
+}
+
+fn codec(file: &Path, kind: &str) -> String {
+    let out = Command::new("ffprobe")
+        .args(["-v", "error", "-select_streams", kind, "-show_entries", "stream=codec_name", "-of", "csv=p=0"])
+        .arg(file)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+/// Every frame of both tracks shows at the same moment as in the source,
+/// counted from the first picture.
+fn assert_matches_source(src_v: &[f64], src_a: &[f64], out: &Path) {
+    let start = src_v[0];
+    for (kind, src) in [("v", src_v), ("a", src_a)] {
+        let got = times(out, kind);
+        assert_eq!(got.len(), src.len(), "{kind} frames");
+        for (g, s) in got.iter().zip(src) {
+            assert!((g - (s - start)).abs() < 0.002, "{kind} at {g}, source {}", s - start);
+        }
+    }
+    let warnings = decode_warnings(out);
+    assert!(warnings.is_empty(), "decoder complained: {warnings}");
+}
+
+fn fmp4(video: Vec<&str>, separate: bool, name: &str) {
+    let d = dir(name);
+    let (v, a) = make_fmp4(&d, &video, separate, "5");
+    let out = d.join("out.mp4");
+    let mut f = File::create(&out).unwrap();
+    fmp4_to_mp4(&v, a.as_deref(), &mut f).unwrap();
+    let a = a.unwrap_or_else(|| v.clone());
+    assert_matches_source(&times(&v, "v"), &times(&a, "a"), &out);
+    assert_eq!(codec(&out, "v"), codec(&v, "v"));
+    assert_eq!(codec(&out, "a"), "aac");
+}
+
+#[test]
+fn fmp4_with_sound_in_the_same_pieces() {
+    fmp4(H264.to_vec(), false, "fm-muxed");
+}
+
+#[test]
+fn fmp4_with_sound_in_separate_pieces() {
+    fmp4(H264.to_vec(), true, "fm-separate");
+}
+
+#[test]
+fn fmp4_h265_keeps_its_format() {
+    fmp4(vec!["-c:v", "libx265", "-tag:v", "hvc1", "-pix_fmt", "yuv420p", "-preset", "ultrafast", "-x265-params", "log-level=error"], true, "fm-hevc");
+}
+
+#[test]
+fn fmp4_vp9_keeps_its_format() {
+    fmp4(vec!["-c:v", "libvpx-vp9", "-pix_fmt", "yuv420p", "-b:v", "400k", "-deadline", "realtime", "-cpu-used", "8"], true, "fm-vp9");
+}
+
+#[test]
+fn fmp4_av1_keeps_its_format() {
+    fmp4(vec!["-c:v", "libsvtav1", "-pix_fmt", "yuv420p", "-preset", "12", "-svtav1-params", "verbosity=0"], true, "fm-av1");
+}
+
+#[test]
+fn encrypted_fmp4_is_refused() {
+    let d = dir("fm-locked");
+    let f = d.join("locked.mp4");
+    let mut a: Vec<&str> = vec![];
+    a.extend(PICTURE);
+    a.extend(["-t", "2"]);
+    a.extend(H264);
+    a.extend(["-encryption_scheme", "cenc-aes-ctr", "-encryption_key", "00112233445566778899aabbccddeeff",
+        "-encryption_kid", "ffeeddccbbaa99887766554433221100", "-movflags", "frag_keyframe+empty_moov+default_base_moof",
+        "-f", "mp4", f.to_str().unwrap()]);
+    ffmpeg(&a);
+    let mut out = File::create(d.join("out.mp4")).unwrap();
+    assert!(matches!(fmp4_to_mp4(&f, None, &mut out), Err(RemuxError::Unsupported(_))));
+}
+
+#[test]
+fn ts_is_not_fmp4() {
+    let d = dir("fm-ts");
+    let ts = d.join("in.ts");
+    make_ts(&ts, "1", &[]);
+    let mut out = File::create(d.join("out.mp4")).unwrap();
+    assert!(matches!(fmp4_to_mp4(&ts, None, &mut out), Err(RemuxError::NotMine)));
 }

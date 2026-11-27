@@ -6,6 +6,28 @@ use std::io::{self, Seek, SeekFrom, Write};
 pub enum Format {
     Avc { width: u32, height: u32, sps: Vec<u8>, pps: Vec<u8> },
     Aac { asc: [u8; 2], channels: u16, rate: u32 },
+    /// A sample entry copied as it is from another MP4, with that track's
+    /// display size (16.16) when it's a picture
+    Copied { entry: Vec<u8>, video: bool, width: u32, height: u32 },
+}
+
+impl Format {
+    fn video(&self) -> bool {
+        match self {
+            Format::Avc { .. } => true,
+            Format::Aac { .. } => false,
+            Format::Copied { video, .. } => *video,
+        }
+    }
+
+    /// Display size in 16.16 fixed point
+    fn size(&self) -> (u32, u32) {
+        match self {
+            Format::Avc { width, height, .. } => (width << 16, height << 16),
+            Format::Aac { .. } => (0, 0),
+            Format::Copied { width, height, .. } => (*width, *height),
+        }
+    }
 }
 
 pub struct Track {
@@ -14,7 +36,7 @@ pub struct Track {
     /// Decode time of each sample, in `timescale` units, from 0, rising
     pub times: Vec<u64>,
     /// Shown time minus decode time (pictures with B-frames)
-    pub offsets: Vec<u32>,
+    pub offsets: Vec<i32>,
     pub sizes: Vec<u32>,
     pub sync: Vec<bool>,
     /// Movie time before this track begins (milliseconds)
@@ -162,11 +184,8 @@ fn moov(tracks: &[Track]) -> Vec<u8> {
 }
 
 fn trak(t: &Track, id: u32) -> Vec<u8> {
-    let video = matches!(t.format, Format::Avc { .. });
-    let (w, h) = match t.format {
-        Format::Avc { width, height, .. } => (width, height),
-        _ => (0, 0),
-    };
+    let video = t.format.video();
+    let (w, h) = t.format.size();
     let shown = t.shown_ms();
     let mut tkhd = vec![];
     tkhd.extend(0u32.to_be_bytes());
@@ -182,8 +201,8 @@ fn trak(t: &Track, id: u32) -> Vec<u8> {
     for m in MATRIX {
         tkhd.extend(m.to_be_bytes());
     }
-    tkhd.extend((w << 16).to_be_bytes());
-    tkhd.extend((h << 16).to_be_bytes());
+    tkhd.extend(w.to_be_bytes());
+    tkhd.extend(h.to_be_bytes());
 
     // Edit list: an empty stretch for a late start, then the media from media_start
     let mut elst = vec![];
@@ -249,9 +268,11 @@ fn stbl(t: &Track) -> Vec<u8> {
     let mut parts = vec![full(b"stsd", 0, &cat(&[1u32.to_be_bytes().to_vec(), entry(&t.format)]))];
     parts.push(full(b"stts", 0, &table(&t.durations(), |b, d| b.extend(d.to_be_bytes()))));
     if t.offsets.iter().any(|&o| o != 0) {
-        parts.push(full(b"ctts", 0, &table(&t.offsets, |b, o| b.extend(o.to_be_bytes()))));
+        // Version 1 allows offsets below zero
+        let version = if t.offsets.iter().any(|&o| o < 0) { 1u32 << 24 } else { 0 };
+        parts.push(full(b"ctts", version, &table(&t.offsets, |b, o| b.extend(o.to_be_bytes()))));
     }
-    if matches!(t.format, Format::Avc { .. }) && t.sync.iter().any(|s| !s) {
+    if t.format.video() && t.sync.iter().any(|s| !s) {
         let keys: Vec<u32> = t.sync.iter().enumerate().filter(|(_, &s)| s).map(|(i, _)| i as u32 + 1).collect();
         let mut b = (keys.len() as u32).to_be_bytes().to_vec();
         keys.iter().for_each(|k| b.extend(k.to_be_bytes()));
@@ -318,6 +339,7 @@ fn entry(f: &Format) -> Vec<u8> {
             b.extend(esds(asc));
             bx(b"mp4a", &b)
         }
+        Format::Copied { entry, .. } => entry.clone(),
     }
 }
 

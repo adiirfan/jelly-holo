@@ -13,7 +13,7 @@ import java.net.URL
  * media list of the pieces that make up one track.
  */
 sealed class HlsPlaylist {
-    class Variant(val uri: String, val bandwidth: Long, val audioGroup: String?)
+    class Variant(val uri: String, val bandwidth: Long, val audioGroup: String?, val codecs: List<String> = emptyList())
 
     class Rendition(val uri: String?, val group: String, val default: Boolean)
 
@@ -21,9 +21,14 @@ sealed class HlsPlaylist {
     class Choice(val video: String, val audio: String?)
 
     class Master(val variants: List<Variant>, val audio: List<Rendition>) : HlsPlaylist() {
-        /** The highest quality, with its sound (the default one of its group). */
-        fun best(): Choice? {
-            val v = variants.maxByOrNull { it.bandwidth } ?: return null
+        /**
+         * The highest quality whose formats all pass [playable] (given each
+         * format's type, as in [mimeOf]), with its sound (the default one of
+         * its group). If none pass, the highest quality of all.
+         */
+        fun best(playable: (String) -> Boolean = { true }): Choice? {
+            val fits = variants.filter { v -> v.codecs.mapNotNull { mimeOf(it) }.all(playable) }
+            val v = fits.maxByOrNull { it.bandwidth } ?: variants.maxByOrNull { it.bandwidth } ?: return null
             val group = audio.filter { it.group == v.audioGroup }
             val sound = (group.firstOrNull { it.default } ?: group.firstOrNull())?.uri
             return Choice(v.uri, sound)
@@ -75,6 +80,7 @@ sealed class HlsPlaylist {
                             resolve(base, line),
                             pending["BANDWIDTH"]?.toLongOrNull() ?: 0L,
                             pending["AUDIO"],
+                            pending["CODECS"]?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
                         )
                         pending = null
                     }
@@ -163,6 +169,25 @@ sealed class HlsPlaylist {
                 i = s.indexOf(',', j).let { if (it < 0) s.length else it + 1 }
             }
             return out
+        }
+
+        /** The media type a playlist's format name (RFC 6381) stands for, or null if unknown. */
+        fun mimeOf(codec: String): String? {
+            val c = codec.lowercase()
+            return when {
+                c.startsWith("avc1") || c.startsWith("avc3") -> "video/avc"
+                c.startsWith("hvc1") || c.startsWith("hev1") -> "video/hevc"
+                c.startsWith("dvh1") || c.startsWith("dvhe") || c.startsWith("dav1") -> "video/dolby-vision"
+                c.startsWith("vp09") || c == "vp9" -> "video/x-vnd.on2.vp9"
+                c.startsWith("vp08") || c == "vp8" -> "video/x-vnd.on2.vp8"
+                c.startsWith("av01") -> "video/av01"
+                c.startsWith("mp4a") -> "audio/mp4a-latm"
+                c == "ac-3" -> "audio/ac3"
+                c == "ec-3" -> "audio/eac3"
+                c == "opus" -> "audio/opus"
+                c == "flac" -> "audio/flac"
+                else -> null
+            }
         }
 
         fun resolve(base: String, ref: String): String =
