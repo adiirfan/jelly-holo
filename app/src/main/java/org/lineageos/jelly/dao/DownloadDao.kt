@@ -36,6 +36,16 @@ interface DownloadDao {
     @Query("DELETE FROM downloads WHERE id = :id")
     suspend fun delete(id: Long)
 
+    @Query("SELECT * FROM downloads WHERE kind = 'TORRENT'")
+    suspend fun torrents(): List<DownloadItem>
+
+    /** Torrents asked for but not yet handed to the engine. */
+    @Query(
+        "SELECT * FROM downloads WHERE kind = 'TORRENT' AND infoHash IS NULL " +
+            "AND state NOT IN ('DONE', 'FAILED', 'CANCELLED')"
+    )
+    suspend fun pendingTorrents(): List<DownloadItem>
+
     @Query("SELECT * FROM downloads WHERE dmId >= 0 AND state IN ('QUEUED', 'RUNNING', 'PAUSED')")
     suspend fun activeDm(): List<DownloadItem>
 }

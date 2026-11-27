@@ -36,6 +36,8 @@ class FakeDownloadDao : DownloadDao {
         rows.remove(id)
     }
     override suspend fun activeDm() = rows.values.filter { it.dmId >= 0 }
+    override suspend fun torrents() = rows.values.filter { it.kind == DownloadKind.TORRENT }
+    override suspend fun pendingTorrents() = torrents().filter { it.infoHash == null }
 }
 
 class DownloadRecorderTest {

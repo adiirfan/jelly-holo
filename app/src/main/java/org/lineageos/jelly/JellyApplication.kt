@@ -8,6 +8,7 @@ package org.lineageos.jelly
 import android.app.Activity
 import android.app.Application
 import android.content.SharedPreferences
+import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
@@ -18,6 +19,7 @@ import org.lineageos.jelly.repository.FavoriteRepository
 import org.lineageos.jelly.repository.HistoryRepository
 import org.lineageos.jelly.ui.HoloBars
 import org.lineageos.jelly.utils.SharedPreferencesExt
+import java.io.File
 
 class JellyApplication : Application() {
     private val historyDatabase by lazy { HistoryDatabase.getDatabase(this) }
@@ -28,6 +30,8 @@ class JellyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // The torrent process only runs the torrent engine
+        if (processName().endsWith(":torrent")) return
 
         applyLook()
         PreferenceManager.getDefaultSharedPreferences(this)
@@ -36,6 +40,13 @@ class JellyApplication : Application() {
 
         AdBlock.start(this)
     }
+
+    private fun processName(): String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            getProcessName()
+        } else {
+            runCatching { File("/proc/self/cmdline").readText().trimEnd('\u0000') }.getOrDefault("")
+        }
 
     // Held here: the preference manager keeps only a weak reference.
     private val lookListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->

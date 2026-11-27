@@ -294,6 +294,14 @@
     <string name="pref_fast_downloads_title">Fast downloads</string>
     <string name="pref_fast_downloads_summary">Fetch large files in several parts at once, when the site allows it</string>
     <string name="download_channel">Downloads</string>
+    <string name="torrent_note_title">Torrents</string>
+    <string name="torrent_note">%1$d active · ↓ %2$s/s · ↑ %3$s/s</string>
+    <string name="torrent_waiting_vpn">Waiting for VPN</string>
+    <string name="torrent_waiting_wifi">Waiting for Wi-Fi</string>
+    <string name="torrent_pause_all">Pause all</string>
+    <string name="torrent_time_limit">Android paused torrents for today</string>
+    <string name="torrent_needs_storage">Torrents need permission to save to Downloads</string>
+    <string name="torrent_allow">Allow</string>
     <string name="download_starting">Starting…</string>
     <string name="download_progress">%1$s of %2$s · %3$s/s</string>
     <!-- Downloads page -->

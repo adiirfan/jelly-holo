@@ -134,6 +134,8 @@ import kotlin.reflect.cast
 import org.lineageos.jelly.database.DownloadDatabase
 import org.lineageos.jelly.downloads.DownloadRecorder
 import org.lineageos.jelly.downloads.DownloadsActivity
+import org.lineageos.jelly.torrent.TorrentService
+import android.provider.Settings
 
 class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     // View model
@@ -195,6 +197,34 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             }
             webRequestPermissions?.invoke(granted.toTypedArray())
         }
+
+    private var afterStoragePermission: (() -> Unit)? = null
+    private val storagePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val then = afterStoragePermission
+            afterStoragePermission = null
+            if (granted) then?.invoke() else torrentNeedsStorage()
+        }
+
+    /** Android 10 and older: torrents need the storage permission, asked before the first one. */
+    fun withTorrentStorage(then: () -> Unit) {
+        if (TorrentService.canSave(this)) {
+            then()
+            return
+        }
+        afterStoragePermission = then
+        storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    }
+
+    private fun torrentNeedsStorage() {
+        Snackbar.make(constraintLayout, R.string.torrent_needs_storage, Snackbar.LENGTH_LONG)
+            .setAction(R.string.torrent_allow) {
+                startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+                )
+            }
+            .show()
+    }
 
     override fun launchFileRequest(input: Array<String>) {
         fileRequest.launch(input)
@@ -298,6 +328,9 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
         // Register app shortcuts
         registerShortcuts()
+
+        // Unfinished torrents carry on once the browser is opened again
+        lifecycleScope.launch(Dispatchers.IO) { TorrentService.resumeIfNeeded(applicationContext) }
 
         urlBarLayout.isIncognito = incognito
 
