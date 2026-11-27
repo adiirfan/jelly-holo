@@ -116,6 +116,10 @@ class YtDlpRuntime(context: Context) {
 
     /** The yt-dlp in use: the shipped one, or a newer one it updated to. */
     val ytdlpFile = File(root, "yt-dlp")
+    private val versionFile = File(root, "yt-dlp.version")
+
+    /** The version of the yt-dlp in use, as recorded when it was put there. */
+    fun installedVersion(): String? = versionFile.takeIf { it.exists() }?.readText()?.trim()
 
     /** The version of the yt-dlp file that shipped with the app. */
     val shippedVersion: String
@@ -139,11 +143,11 @@ class YtDlpRuntime(context: Context) {
             prefix.mkdirs()
             app.assets.open("ytdlp/python.zip").use { unzip(it, prefix) }
             writeCerts()
-            if (!ytdlpFile.exists()) copyShipped()
             marker.writeText(stamp())
             Log.i(AdBlock.TAG, "yt-dlp: unpacked Python in ${(System.nanoTime() - t) / 1_000_000} ms")
         }
-        if (!ytdlpFile.exists()) copyShipped()
+        // An app update may ship a newer yt-dlp than the one updated to
+        if (!ytdlpFile.exists() || isNewer(shippedVersion, installedVersion() ?: "")) copyShipped()
         home.mkdirs()
         cache.mkdirs()
         true
@@ -158,6 +162,16 @@ class YtDlpRuntime(context: Context) {
         val tmp = File(root, "yt-dlp.tmp")
         app.assets.open("ytdlp/yt-dlp").use { input -> tmp.outputStream().use { input.copyTo(it) } }
         tmp.renameTo(ytdlpFile)
+        versionFile.writeText(shippedVersion)
+    }
+
+    /** Looks for a newer yt-dlp (at most daily unless [force]); call off the main thread. */
+    fun update(force: Boolean): UpdateResult {
+        if (!prepare()) return UpdateResult(Outcome.FAILED)
+        val r = YtDlpUpdate.forApp(app).check(installedVersion() ?: shippedVersion, ytdlpFile, force)
+        if (r.outcome == Outcome.UPDATED) r.version?.let { versionFile.writeText(it) }
+        Log.i(AdBlock.TAG, "yt-dlp update check: ${r.outcome} ${r.version ?: ""}")
+        return r
     }
 
     private fun unzip(input: InputStream, into: File) {

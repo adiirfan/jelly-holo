@@ -27,6 +27,7 @@ import androidx.preference.SwitchPreference
 import com.google.android.material.checkbox.MaterialCheckBox
 import org.lineageos.jelly.adblock.AdBlock
 import org.lineageos.jelly.utils.SharedPreferencesExt
+import org.lineageos.jelly.ytdlp.Outcome
 import org.lineageos.jelly.ytdlp.YtDlpRuntime
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -133,6 +134,11 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
 
+                "key_ytdlp" -> {
+                    updateYtDlp(preference)
+                    true
+                }
+
                 "key_cookie_clear" -> {
                     CookieManager.getInstance().removeAllCookies(null)
                     Toast.makeText(
@@ -152,12 +158,28 @@ class SettingsActivity : AppCompatActivity() {
         private fun showYtDlpVersion(preference: Preference) {
             val runtime = YtDlpRuntime(requireContext())
             preference.summary = getString(
-                if (runtime.needsUnpacking) R.string.ytdlp_getting_ready else R.string.pref_ytdlp_title
+                if (runtime.needsUnpacking) R.string.ytdlp_getting_ready else R.string.pref_ytdlp_checking
             )
             lifecycleScope.launch {
                 val version = withContext(Dispatchers.IO) { runtime.version() }
+                if (!isAdded) return@launch
                 preference.summary = version?.let { getString(R.string.pref_ytdlp_version, it) }
                     ?: getString(R.string.pref_ytdlp_broken)
+            }
+        }
+
+        private fun updateYtDlp(preference: Preference) {
+            val context = preference.context.applicationContext
+            preference.summary = getString(R.string.pref_ytdlp_checking)
+            lifecycleScope.launch {
+                val r = withContext(Dispatchers.IO) { YtDlpRuntime(context).update(force = true) }
+                val text = when (r.outcome) {
+                    Outcome.UPDATED -> getString(R.string.pref_ytdlp_updated, r.version)
+                    Outcome.UP_TO_DATE, Outcome.SKIPPED -> getString(R.string.pref_ytdlp_up_to_date)
+                    Outcome.FAILED -> getString(R.string.pref_ytdlp_update_failed)
+                }
+                Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+                showYtDlpVersion(preference)
             }
         }
 

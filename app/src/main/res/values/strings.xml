@@ -343,7 +343,11 @@
     <string name="tab_untitled">New tab</string>
     <string name="tab_close">Close %1$s</string>
     <string name="pref_ytdlp_title">yt-dlp</string>
-    <string name="pref_ytdlp_version">Version %1$s</string>
+    <string name="pref_ytdlp_version">Version %1$s. Tap to check for an update.</string>
+    <string name="pref_ytdlp_checking">Checking…</string>
+    <string name="pref_ytdlp_updated">Updated yt-dlp to %1$s</string>
+    <string name="pref_ytdlp_up_to_date">yt-dlp is up to date</string>
+    <string name="pref_ytdlp_update_failed">Couldn\'t check for a yt-dlp update</string>
     <string name="pref_ytdlp_broken">Not working on this phone</string>
     <string name="ytdlp_getting_ready">Getting ready…</string>
     <string name="ytdlp_sign_in">This site wants you signed in. Sign in on the page, then try again.</string>
