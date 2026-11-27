@@ -9,6 +9,7 @@ import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -249,7 +250,8 @@ class DownloadsActivity : AppCompatActivity(R.layout.activity_downloads) {
     private fun cancel(i: DownloadItem) {
         if (i.dmId >= 0) {
             getSystemService(DownloadManager::class.java).remove(i.dmId)
-        } else {
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Only Android 10 and newer download through the browser's own service
             DownloadService.cancelRecord(this, i.id)
         }
     }

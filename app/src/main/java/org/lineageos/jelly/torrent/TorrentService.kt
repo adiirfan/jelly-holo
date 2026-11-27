@@ -404,7 +404,8 @@ class TorrentService : Service() {
         } else {
             0
         }
-        startForeground(NOTE_ID, n, type)
+        // The form with a type only exists from Android 10; older ones crash on it
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(NOTE_ID, n, type) else startForeground(NOTE_ID, n)
     }
 
     private fun note(rows: List<DownloadItem> = emptyList()): Notification {
