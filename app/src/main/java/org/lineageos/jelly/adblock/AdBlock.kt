@@ -22,6 +22,7 @@ import java.net.NoRouteToHostException
 import java.net.URL
 import java.net.UnknownHostException
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Ad and tracker blocking. The matching runs in Rust (libjellyblock, built
@@ -41,7 +42,7 @@ object AdBlock {
     private var started = false
 
     /** All list work, one thing at a time: downloads, adding, removing, compiling. */
-    private val work = Executors.newSingleThreadExecutor { Thread(it, "AdBlockLists") }
+    private val work = Executors.newSingleThreadScheduledExecutor { Thread(it, "AdBlockLists") }
     private val main = Handler(Looper.getMainLooper())
 
     /** Called on the main thread whenever the lists change (the Block lists page listens). */
@@ -50,6 +51,9 @@ object AdBlock {
 
     @Volatile
     private var waitingForNetwork = false
+
+    /** Retries made after a connection appeared, since the last download that worked. */
+    private var networkRetries = 0
 
     init {
         System.loadLibrary("jellyblock")
@@ -88,7 +92,10 @@ object AdBlock {
     /** Downloads every list that is on, now. */
     fun updateNow(context: Context) {
         val app = context.applicationContext
-        work.execute { refresh(app, lists(app).filter { it.on && it.url != null }, force = true) }
+        work.execute {
+            networkRetries = 0
+            refresh(app, lists(app).filter { it.on && it.url != null }, force = true)
+        }
     }
 
     fun addAddress(context: Context, url: String, name: String) {
@@ -175,6 +182,7 @@ object AdBlock {
                 }
             }
         }
+        if (fetched && !offline) networkRetries = 0
         if (fetched || force) rebuild(app)
         if (offline) retryWhenOnline(app)
     }
@@ -196,19 +204,23 @@ object AdBlock {
         notifyChanged()
     }
 
-    /** A download failed for want of a connection: try once more when one appears. */
+    /**
+     * A download failed for want of a connection: when one is there, try again after a wait
+     * that doubles each time, and give up after a few (the next start or Update now tries again).
+     */
     private fun retryWhenOnline(app: Context) {
+        val delay = BlockLists.retryDelayMs(networkRetries) ?: return
         if (waitingForNetwork) return
         waitingForNetwork = true
         val cm = app.getSystemService(ConnectivityManager::class.java)
-        // The network it failed on is reported again at once; only a different one counts
-        val failedOn = cm.activeNetwork
         cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                if (network == failedOn) return
                 runCatching { cm.unregisterNetworkCallback(this) }
-                waitingForNetwork = false
-                work.execute { refresh(app, BlockLists.due(lists(app), now(), retryFailed = true)) }
+                work.schedule({
+                    waitingForNetwork = false
+                    networkRetries++
+                    refresh(app, BlockLists.due(lists(app), now(), retryFailed = true))
+                }, delay, TimeUnit.MILLISECONDS)
             }
         })
     }

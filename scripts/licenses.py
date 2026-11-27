@@ -114,8 +114,8 @@ def standard(licence):
 
 def row(name, version, licence, links):
     v = f' <span class="v">{html.escape(version)}</span>' if version else ""
-    return (f'<li><b>{html.escape(name)}</b>{v}<br><span class="l">{html.escape(licence)}</span>'
-            f' · {" · ".join(links)}</li>')
+    joined = "".join(f" · {link}" for link in links)
+    return f'<li><b>{html.escape(name)}</b>{v}<br><span class="l">{html.escape(licence)}</span>{joined}</li>'
 
 
 def main():
@@ -123,7 +123,7 @@ def main():
 
     jelly = [row("LineageOS Jelly", "", "Apache-2.0 · © The LineageOS Project", [standard("Apache-2.0")]),
              row("Jelly Holo's own Rust code (ad blocker, torrent engine)", "", "MIT · © Jelly Holo contributors",
-                 [standard("MIT")])]
+                 [text_link("Jelly Holo MIT licence", read(os.path.join(ROOT, "blocker/LICENSE")))])]
     sections.append(("This app", jelly))
 
     bundled = [

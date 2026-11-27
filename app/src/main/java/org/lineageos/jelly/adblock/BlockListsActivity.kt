@@ -176,7 +176,12 @@ class BlockListsActivity : AppCompatActivity(R.layout.activity_block_lists) {
     /** "easylist.to · updated 2 hours ago", "From a file · added 3 Dec", or what went wrong. */
     private fun meta(l: BlockList): String {
         val source = l.url?.let { Uri.parse(it).host } ?: getString(R.string.block_lists_from_file)
-        val time = DateUtils.getRelativeTimeSpanString(l.updated, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)
+        val now = System.currentTimeMillis()
+        val time = if (now - l.updated < DateUtils.MINUTE_IN_MILLIS) {
+            getString(R.string.block_lists_just_now)
+        } else {
+            DateUtils.getRelativeTimeSpanString(l.updated, now, DateUtils.MINUTE_IN_MILLIS)
+        }
         val state = when {
             l.error != null -> getString(R.string.block_lists_failed, l.error)
             l.updated == 0L -> getString(R.string.block_lists_not_yet)

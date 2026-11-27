@@ -89,6 +89,13 @@ class BlockListsTest {
     }
 
     @Test
+    fun retries_after_the_connection_returns_wait_longer_each_time_then_stop() {
+        // The phone keeps a failed name lookup for about 10 s, so the first wait is longer than that
+        assertEquals(listOf(15_000L, 30_000L, 60_000L, 120_000L, 240_000L), (0..4).map { BlockLists.retryDelayMs(it) })
+        assertNull(BlockLists.retryDelayMs(5))
+    }
+
+    @Test
     fun suggestions_leave_out_lists_already_added() {
         val added = BlockLists.firstRun(null)
         val left = BlockLists.suggestionsLeft(added).map { it.url }

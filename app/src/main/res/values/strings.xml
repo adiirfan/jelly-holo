@@ -289,6 +289,7 @@
     <string name="block_lists_remove_title">Remove %1$s?</string>
     <string name="block_lists_failed">couldn\'t update: %1$s</string>
     <string name="block_lists_not_yet">not downloaded yet</string>
+    <string name="block_lists_just_now">just now</string>
     <string name="block_lists_updated_at">updated %1$s</string>
     <string name="block_lists_added_at">added %1$s</string>
     <string name="block_lists_empty">No block lists. Ads and trackers aren\'t blocked until you add one.</string>

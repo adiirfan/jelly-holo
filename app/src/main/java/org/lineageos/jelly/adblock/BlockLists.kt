@@ -36,6 +36,8 @@ object BlockLists {
     private const val MIN_EXPIRY_MS = DAY
     private const val MAX_EXPIRY_MS = 14 * DAY
     private const val RETRY_MS = 60 * 60_000L
+    private const val FIRST_RETRY_MS = 15_000L
+    private const val MAX_NETWORK_RETRIES = 5
 
     val SUGGESTED = listOf(
         SuggestedList("EasyList", "https://easylist.to/easylist/easylist.txt", "Most ads"),
@@ -122,7 +124,10 @@ object BlockLists {
             (retryFailed || it.error == null || now - it.triedAt >= RETRY_MS)
     }
 
-    fun suggestionsLeft(lists: List<BlockList>): List<SuggestedList> =
+    /** How long to wait before retry number [attempt] after a connection appears; null = stop trying. */
+    fun retryDelayMs(attempt: Int): Long? = if (attempt in 0 until MAX_NETWORK_RETRIES) FIRST_RETRY_MS shl attempt else null
+
+        fun suggestionsLeft(lists: List<BlockList>): List<SuggestedList> =
         SUGGESTED.filter { s -> lists.none { it.url == s.url } }
 
     fun isAddress(text: String): Boolean {
