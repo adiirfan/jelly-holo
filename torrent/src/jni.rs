@@ -113,10 +113,17 @@ pub extern "system" fn Java_org_lineageos_jelly_torrent_NativeTorrent_nativeStar
 
 fn stop_running() {
     let Some(e) = ENGINE.write().ok().and_then(|mut g| g.take()) else { return };
-    match Arc::try_unwrap(e) {
-        Ok(e) => e.stop(),
-        // A call is still running on it: stop the torrents now, the threads end when it returns
-        Err(shared) => shared.halt(),
+    // Stopping ends any add still running; give those calls a moment to return, so a
+    // new engine never shares the saved-state folder with the old one
+    e.halt();
+    for _ in 0..50 {
+        if Arc::strong_count(&e) == 1 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    if let Ok(e) = Arc::try_unwrap(e) {
+        e.stop();
     }
 }
 

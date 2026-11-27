@@ -116,7 +116,8 @@ impl Engine {
             persistence: Some(SessionPersistenceConfig::Json { folder: Some(cfg.state_dir.clone()) }),
             fastresume: true,
             disable_trackers: !cfg.trackers,
-            disable_local_service_discovery: !cfg.dht,
+            // It announces on every local network on purpose, past any VPN: never wanted on a phone
+            disable_local_service_discovery: true,
             listen: Some(ListenerOptions {
                 mode: ListenerMode::TcpAndUtp,
                 listen_addr: (Ipv6Addr::UNSPECIFIED, cfg.port).into(),
@@ -135,7 +136,14 @@ impl Engine {
     }
 
     fn add(&self, what: AddTorrent<'_>, opts: AddTorrentOptions) -> anyhow::Result<Added> {
-        let r = self.rt.block_on(self.session.add_torrent(what, Some(opts)))?;
+        // A magnet's lookup isn't tied to the engine's stop on its own: end it when the engine stops
+        let stopped = self.session.cancellation_token().clone();
+        let r = self.rt.block_on(async {
+            tokio::select! {
+                r = self.session.add_torrent(what, Some(opts)) => r,
+                _ = stopped.cancelled() => Err(anyhow::anyhow!("the engine stopped")),
+            }
+        })?;
         let (id, h) = match r {
             AddTorrentResponse::Added(id, h) | AddTorrentResponse::AlreadyManaged(id, h) => (id, h),
             AddTorrentResponse::ListOnly(_) => anyhow::bail!("the torrent was only listed"),

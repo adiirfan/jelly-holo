@@ -162,3 +162,24 @@ fn engine_select_files_skips_unselected() {
     // Pieces shared with the chosen file may touch it; it must not be complete
     assert!(other.done < 1_000_000, "the skipped file was downloaded anyway");
 }
+
+#[test]
+fn engine_stop_ends_a_magnet_still_being_looked_up() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cfg = config(&tmp.path().join("down"), &tmp.path().join("state"));
+    cfg.trackers = true;
+    let e = std::sync::Arc::new(Engine::start(cfg).unwrap());
+    let looking = e.clone();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        // A tracker that never answers: the lookup can only end by being stopped
+        let r = looking.add_magnet(
+            "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&tr=udp%3A%2F%2F127.0.0.1%3A9%2Fannounce",
+        );
+        let _ = tx.send(r.is_err());
+    });
+    assert!(rx.recv_timeout(Duration::from_secs(2)).is_err(), "the lookup ended before the test could stop it");
+    e.halt();
+    let failed = rx.recv_timeout(Duration::from_secs(5)).expect("the lookup kept going after the engine stopped");
+    assert!(failed, "a stopped engine still added the torrent");
+}
