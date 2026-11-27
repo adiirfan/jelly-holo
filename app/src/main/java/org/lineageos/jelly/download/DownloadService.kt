@@ -100,7 +100,8 @@ class DownloadService : Service() {
                 val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
                 val referer = intent.getStringExtra(EXTRA_REFERER)
                 val duration = intent.getDoubleExtra(EXTRA_DURATION, -1.0)
-                thread(name = "Download$id") { runStream(id, job, streams, duration, userAgent, referer) }
+                val private = intent.getBooleanExtra(EXTRA_PRIVATE, false)
+                thread(name = "Download$id") { runStream(id, job, streams, duration, userAgent, referer, private) }
             }
 
             ACTION_START_YTDLP -> {
@@ -201,6 +202,7 @@ class DownloadService : Service() {
         duration: Double,
         userAgent: String?,
         referer: String?,
+        private: Boolean,
     ) {
         var item: Uri? = null
         val dir = File(cacheDir, "stream-$id")
@@ -279,7 +281,11 @@ class DownloadService : Service() {
             Log.i(AdBlock.TAG, "downloaded stream $name: ${plan.pieces} pieces, joined=$joined ($how) in $joinSecs s, $secs s")
             finished(id, name, item!!, mime)
         } catch (e: HlsDownload.Refused) {
-            failed(id, job.name, getString(refusalText(e.reason)))
+            if (e.reason == HlsDownload.Reason.NOT_FOUND && referer != null) {
+                offerYtDlp(id, job.name, referer, private)
+            } else {
+                failed(id, job.name, getString(refusalText(e.reason)))
+            }
         } catch (e: Exception) {
             Log.w(AdBlock.TAG, "stream download failed: ${job.name}", e)
             item?.let { runCatching { contentResolver.delete(it, null, null) } }
@@ -634,6 +640,30 @@ class DownloadService : Service() {
         )
     }
 
+    /**
+     * The page's own stream couldn't be found: tapping the note opens the
+     * page in a new tab (as private as the one it came from) and asks
+     * yt-dlp. The list of sizes needs the browser, so it can't start here.
+     */
+    private fun offerYtDlp(id: Int, name: String, page: String, private: Boolean) {
+        val open = Intent(this, org.lineageos.jelly.MainActivity::class.java)
+            .setAction(Intent.ACTION_VIEW)
+            .setData(Uri.parse(page))
+            .putExtra(EXTRA_YTDLP, true)
+            .putExtra(org.lineageos.jelly.utils.IntentUtils.EXTRA_INCOGNITO, private)
+        val tap = PendingIntent.getActivity(this, id, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        nm.notify(
+            id + DONE_OFFSET,
+            base(name)
+                .setSmallIcon(android.R.drawable.stat_notify_error)
+                .setContentText(getString(R.string.ytdlp_try_instead))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(getString(R.string.ytdlp_try_instead)))
+                .setContentIntent(tap)
+                .setAutoCancel(true)
+                .build(),
+        )
+    }
+
     private fun createChannel() {
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL, getString(R.string.download_channel), NotificationManager.IMPORTANCE_LOW)
@@ -647,6 +677,10 @@ class DownloadService : Service() {
         private const val ACTION_START_STREAM = "start_stream"
         private const val ACTION_START_YTDLP = "start_ytdlp"
         private const val EXTRA_JOB = "job"
+        private const val EXTRA_PRIVATE = "private"
+
+        /** On a browser intent: ask yt-dlp about the page as soon as it opens. */
+        const val EXTRA_YTDLP = "dev.jellyholo.ytdlp"
 
         /** YouTube refuses or slows down bigger single requests. */
         private const val MAX_REQUEST = 10L shl 20
@@ -713,9 +747,11 @@ class DownloadService : Service() {
             name: String,
             userAgent: String?,
             referer: String?,
+            private: Boolean,
         ) {
             val intent = Intent(context, DownloadService::class.java)
                 .setAction(ACTION_START_STREAM)
+                .putExtra(EXTRA_PRIVATE, private)
                 .putExtra(EXTRA_STREAMS, streams.toTypedArray())
                 .putExtra(EXTRA_DURATION, duration)
                 .putExtra(EXTRA_NAME, name)

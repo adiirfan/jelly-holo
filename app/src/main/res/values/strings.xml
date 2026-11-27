@@ -357,4 +357,12 @@
     <string name="ytdlp_live">Live videos can\'t be saved.</string>
     <string name="ytdlp_failed">Couldn\'t get this video.</string>
     <string name="download_converting">Converting… %1$d%%</string>
+    <string name="menu_download_video">Download video</string>
+    <string name="ytdlp_finding">Finding the video…</string>
+    <string name="ytdlp_choose_quality">Download which size?</string>
+    <string name="ytdlp_sound_only">Sound only</string>
+    <string name="ytdlp_convert_title">Convert this video?</string>
+    <string name="ytdlp_convert_text">This video needs converting so your phone can play it. That can take as long as the video itself, or longer. Convert?</string>
+    <string name="ytdlp_convert">Convert</string>
+    <string name="ytdlp_try_instead">Couldn\'t find the video\'s pieces. Tap to find it with yt-dlp.</string>
 </resources>

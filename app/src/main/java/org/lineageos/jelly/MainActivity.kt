@@ -49,6 +49,7 @@ import android.content.pm.PackageManager
 import android.Manifest
 import android.os.SystemClock
 import android.widget.TextView
+import android.text.format.Formatter
 import org.lineageos.jelly.utils.AssetLoader
 import org.lineageos.jelly.js.JsElementHide
 import org.lineageos.jelly.adblock.ElementRules
@@ -87,6 +88,20 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.lineageos.jelly.download.CodecSupport
+import org.lineageos.jelly.download.Transcode
+import org.lineageos.jelly.ytdlp.Option
+import org.lineageos.jelly.ytdlp.Output
+import org.lineageos.jelly.ytdlp.YtDlpFinder
+import org.lineageos.jelly.ytdlp.YtDlpInfo
+import org.lineageos.jelly.ytdlp.YtDlpJob
+import org.lineageos.jelly.ytdlp.YtDlpRuntime
+import org.lineageos.jelly.ytdlp.fileName
+import org.lineageos.jelly.ytdlp.options
+import org.lineageos.jelly.ytdlp.writeCookies
+import java.util.concurrent.atomic.AtomicBoolean
 import org.lineageos.jelly.ext.buildShareIntent
 import org.lineageos.jelly.favorite.FavoriteActivity
 import org.lineageos.jelly.history.HistoryActivity
@@ -324,6 +339,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                 )
 
                 MenuDialog.Option.DOWNLOADS -> startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS))
+                MenuDialog.Option.DOWNLOAD_VIDEO -> downloadWithYtDlp(webView.url)
                 MenuDialog.Option.ADD_TO_HOME_SCREEN -> addShortcut()
                 MenuDialog.Option.PRINT -> {
                     val printManager = getSystemService(PrintManager::class.java)
@@ -448,6 +464,11 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                 setStatusBarColor(themeColor)
             }
         }
+
+        // Opened from a download note that offered yt-dlp (not when restoring)
+        if (savedInstanceState == null && intent.getBooleanExtra(DownloadService.EXTRA_YTDLP, false)) {
+            url?.let { page -> Handler(Looper.getMainLooper()).post { downloadWithYtDlp(page) } }
+        }
     }
 
     override fun onStart() {
@@ -465,6 +486,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     override fun onStop() {
+        ytdlpLookup?.set(true)
         // The small video window was closed: stop the video too
         if (videoStretched) {
             webView.video.send("pause")
@@ -807,7 +829,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             return
         }
         if (state.kind != "file" || state.src.isEmpty()) {
-            Toast.makeText(this, R.string.vp_stream_no_download, Toast.LENGTH_LONG).show()
+            // Nothing the browser can save itself: ask yt-dlp about the page
+            downloadWithYtDlp(state.page.ifEmpty { webView.url })
             return
         }
         val guessed = UrlUtils.guessFileName(state.src, null, null)
@@ -934,8 +957,13 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     /** A streamed video: the playlists its page loaded are pieced back together. */
     private fun downloadStream(state: VideoState) {
         val streams = (webView.streams() + listOfNotNull(state.src.takeIf { it.isNotEmpty() })).distinct()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || streams.isEmpty()) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             Toast.makeText(this, R.string.vp_stream_no_download, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (streams.isEmpty()) {
+            // The page feeds the player itself (YouTube): ask yt-dlp
+            downloadWithYtDlp(state.page.ifEmpty { webView.url })
             return
         }
         askForNotifications()
@@ -944,8 +972,113 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             this, streams, state.duration, name,
             webView.settings.userAgentString,
             state.page.ifEmpty { webView.url },
+            incognito,
         )
         Toast.makeText(this, getString(R.string.download_started, "$name.mp4"), Toast.LENGTH_SHORT).show()
+    }
+
+    /** Set while yt-dlp looks at a page; leaving the browser stops it. */
+    private var ytdlpLookup: AtomicBoolean? = null
+
+    /**
+     * Asks yt-dlp which versions of the video on [page] exist, then lets
+     * the user pick a size. Runs in the browser, since the list has to
+     * appear right after.
+     */
+    private fun downloadWithYtDlp(page: String?) {
+        if (page.isNullOrEmpty() || !(page.startsWith("https://") || page.startsWith("http://"))) {
+            Toast.makeText(this, R.string.ytdlp_no_video, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Toast.makeText(this, R.string.vp_stream_no_download, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (ytdlpLookup != null) return
+        askForNotifications()
+        val cancelled = AtomicBoolean(false)
+        ytdlpLookup = cancelled
+        val runtime = YtDlpRuntime(this)
+        val cookies = File(cacheDir, "ytdlp-cookies-${System.nanoTime()}.txt")
+        val haveCookies = writeCookies(
+            cookies, page,
+            if (incognito) null else CookieManager.getInstance().getCookie(page),
+            incognito,
+        )
+        val dialog = AlertDialog.Builder(this)
+            .setMessage(if (runtime.needsUnpacking) R.string.ytdlp_getting_ready else R.string.ytdlp_finding)
+            .setNegativeButton(android.R.string.cancel) { _, _ -> cancelled.set(true) }
+            .setCancelable(false)
+            .show()
+        val private = incognito
+        lifecycleScope.launch {
+            val found = withContext(Dispatchers.IO) {
+                try {
+                    YtDlpFinder(runtime).find(page, cookies.takeIf { haveCookies }, cancelled::get)
+                } finally {
+                    cookies.delete()
+                }
+            }
+            ytdlpLookup = null
+            runCatching { dialog.dismiss() }
+            if (isFinishing || isDestroyed) return@launch
+            when (found) {
+                is YtDlpFinder.Found.Cancelled -> {}
+                is YtDlpFinder.Found.Failed ->
+                    Toast.makeText(this@MainActivity, found.problem.message, Toast.LENGTH_LONG).show()
+
+                is YtDlpFinder.Found.Ok -> showQualities(found.info, page, private)
+            }
+        }
+    }
+
+    private fun showQualities(info: YtDlpInfo, page: String, private: Boolean) {
+        if (info.isLive) {
+            Toast.makeText(this, R.string.ytdlp_live, Toast.LENGTH_LONG).show()
+            return
+        }
+        val list = options(info, Transcode::encodable, CodecSupport::playable)
+        when (list.size) {
+            0 -> Toast.makeText(this, R.string.ytdlp_no_video, Toast.LENGTH_LONG).show()
+            1 -> chooseQuality(info, list.first(), page, private)
+            else -> {
+                val sheet = BottomSheetDialog(this)
+                val view = layoutInflater.inflate(R.layout.sheet_qualities, null)
+                val rows = view.findViewById<LinearLayout>(R.id.qualityList)
+                list.forEach { option ->
+                    val row = layoutInflater.inflate(R.layout.item_quality, rows, false) as TextView
+                    val label = if (option.video == null) getString(R.string.ytdlp_sound_only) else option.label
+                    row.text = option.size?.let { "$label  ·  ${Formatter.formatShortFileSize(this, it)}" } ?: label
+                    row.setOnClickListener {
+                        sheet.dismiss()
+                        chooseQuality(info, option, page, private)
+                    }
+                    rows.addView(row)
+                }
+                sheet.setContentView(view)
+                sheet.show()
+            }
+        }
+    }
+
+    private fun chooseQuality(info: YtDlpInfo, option: Option, page: String, private: Boolean) {
+        val start = {
+            val job = YtDlpJob(info.page.ifEmpty { page }, info.title, option, private, info.duration)
+            DownloadService.startYtDlp(this, job)
+            val ext = if (option.output == Output.AUDIO) option.audio?.ext else option.video?.ext
+            val name = fileName(info.title, option.output, ext)
+            Toast.makeText(this, getString(R.string.download_started, name), Toast.LENGTH_SHORT).show()
+        }
+        if (option.output != Output.CONVERT) {
+            start()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.ytdlp_convert_title)
+            .setMessage(R.string.ytdlp_convert_text)
+            .setPositiveButton(R.string.ytdlp_convert) { _, _ -> start() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** Download progress shows as a notification; ask once if needed. */

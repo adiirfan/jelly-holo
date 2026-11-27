@@ -83,6 +83,13 @@
             <View style="@style/Widget.Holo.MenuDivider" />
 
             <TextView
+                android:id="@+id/downloadVideoButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_download_video" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
                 android:id="@+id/shareButton"
                 style="@style/Widget.Holo.MenuRow"
                 android:text="@string/menu_share_page" />

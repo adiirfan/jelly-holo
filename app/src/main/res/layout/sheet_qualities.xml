@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:id="@+id/qualityList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/qualityTitle"
+            style="@style/Widget.Holo.MenuRow"
+            android:clickable="false"
+            android:focusable="false"
+            android:text="@string/ytdlp_choose_quality"
+            android:textStyle="bold" />
+
+        <View style="@style/Widget.Holo.MenuDivider" />
+    </LinearLayout>
+</ScrollView>
