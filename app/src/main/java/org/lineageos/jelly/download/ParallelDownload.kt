@@ -46,6 +46,8 @@ class ParallelDownload(
     private val retries: Int = 3,
     private val retryPauseMs: Long = 500,
     private val log: (String) -> Unit = {},
+    /** When set, no single request asks for more than this (YouTube refuses big ones). */
+    private val maxRequestBytes: Long? = null,
 ) {
     private val t0 = System.nanoTime()
     private fun ms() = (System.nanoTime() - t0) / 1_000_000
@@ -56,6 +58,8 @@ class ParallelDownload(
         val contentType: String?,
         val contentDisposition: String?,
         val finalUrl: String,
+        /** Capped requests to a server that doesn't say the total size: fetch chunk after chunk. */
+        val chunked: Boolean = false,
     )
 
     class Cancelled : IOException("cancelled")
@@ -96,7 +100,7 @@ class ParallelDownload(
      * becomes the first part, so finding out costs no extra round trip.
      */
     fun probe(): Info {
-        val c = open(url, 0, null)
+        val c = open(url, 0, maxRequestBytes?.let { it - 1 })
         try {
             val code = c.responseCode
             log("first answer: $code at ${ms()} ms")
@@ -113,6 +117,7 @@ class ParallelDownload(
                 contentType = c.contentType,
                 contentDisposition = c.getHeaderField("Content-Disposition"),
                 finalUrl = c.url.toString(),
+                chunked = maxRequestBytes != null && ranged && total < 0,
             )
             synchronized(this) { first = c }
             return info
@@ -140,7 +145,11 @@ class ParallelDownload(
         abort = false
         received.set(0)
         var done = false
-        if (info.ranges && info.length >= 2 * minPartBytes) {
+        if (info.chunked) {
+            partsUsed = 1
+            chunks(info, out, progress, cancelled)
+            done = true
+        } else if (info.ranges && (info.length >= 2 * minPartBytes || maxRequestBytes != null)) {
             val ranges = splitRanges(info.length, parts, minPartBytes)
             partsUsed = ranges.size
             done = try {
@@ -212,7 +221,8 @@ class ParallelDownload(
         while (pos <= range.last) {
             checkStop(cancelled)
             try {
-                val c = (if (pos == 0L) takeFirst() else null) ?: open(info.finalUrl, pos, range.last)
+                val end = maxRequestBytes?.let { minOf(range.last, pos + it - 1) } ?: range.last
+                val c = (if (pos == 0L) takeFirst() else null) ?: open(info.finalUrl, pos, end)
                 try {
                     val code = c.responseCode
                     log("part ${range.first}: answer $code at ${ms()} ms")
@@ -224,11 +234,11 @@ class ParallelDownload(
                     }
                     c.inputStream.use { input ->
                         val buf = ByteArray(64 * 1024)
-                        while (pos <= range.last) {
+                        while (pos <= end) {
                             checkStop(cancelled)
                             val read = input.read(buf)
                             if (read < 0) break
-                            val n = minOf(read.toLong(), range.last - pos + 1).toInt()
+                            val n = minOf(read.toLong(), end - pos + 1).toInt()
                             writeAt(out, buf, n, pos)
                             pos += n
                             progress(received.addAndGet(n.toLong()))
@@ -237,7 +247,9 @@ class ParallelDownload(
                 } finally {
                     c.disconnect()
                 }
-                if (pos <= range.last) throw IOException("the connection ended early")
+                if (pos <= end) throw IOException("the connection ended early")
+                tries = 0
+                if (pos <= range.last) continue
                 log("part ${range.first}: done at ${ms()} ms")
             } catch (e: RangesIgnored) {
                 log("part ${range.first}: ranges ignored at ${ms()} ms")
@@ -246,6 +258,58 @@ class ParallelDownload(
                 throw e
             } catch (e: IOException) {
                 log("part ${range.first}: retry after $e at ${ms()} ms")
+                if (++tries > retries) throw e
+                Thread.sleep(retryPauseMs * tries)
+            }
+        }
+    }
+
+    /** Chunk after chunk of [maxRequestBytes], until one comes back short or past the end. */
+    private fun chunks(
+        info: Info,
+        out: FileChannel,
+        progress: (Long) -> Unit,
+        cancelled: () -> Boolean,
+    ) {
+        val size = maxRequestBytes!!
+        var pos = 0L
+        var tries = 0
+        while (true) {
+            checkStop(cancelled)
+            try {
+                val c = (if (pos == 0L) takeFirst() else null) ?: open(info.finalUrl, pos, pos + size - 1)
+                var got = 0L
+                try {
+                    val code = c.responseCode
+                    if (code == 416 && pos > 0) return
+                    if (code != 206) throw IOException("the server answered $code")
+                    if (c.getHeaderField("Content-Range")?.startsWith("bytes $pos-") != true) {
+                        throw IOException("the server sent the wrong part")
+                    }
+                    c.inputStream.use { input ->
+                        val buf = ByteArray(64 * 1024)
+                        while (got < size) {
+                            checkStop(cancelled)
+                            val read = input.read(buf)
+                            if (read < 0) break
+                            val n = minOf(read.toLong(), size - got).toInt()
+                            writeAt(out, buf, n, pos + got)
+                            got += n
+                            progress(received.addAndGet(n.toLong()))
+                        }
+                    }
+                    val expected = c.getHeaderField("Content-Length")?.toLongOrNull()
+                    if (expected != null && got < expected) throw IOException("the connection ended early")
+                } finally {
+                    c.disconnect()
+                }
+                pos += got
+                tries = 0
+                if (got < size) return
+            } catch (e: Cancelled) {
+                throw e
+            } catch (e: IOException) {
+                log("chunk at $pos: retry after $e at ${ms()} ms")
                 if (++tries > retries) throw e
                 Thread.sleep(retryPauseMs * tries)
             }

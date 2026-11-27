@@ -27,6 +27,8 @@ class ParallelDownloadTest {
         var sendLength = true
         var dropOnceAfter = -1L          // cut the first response that passes this byte
         var ignoreRangesAfter = Int.MAX_VALUE  // answer later range requests with the whole file
+        var maxRange = Long.MAX_VALUE    // refuse (403) a request for more than this, like YouTube
+        var hideTotal = false            // "Content-Range: bytes a-b/*"
         val requests: MutableList<Map<String, String>> = Collections.synchronizedList(mutableListOf())
         val active = AtomicInteger()
         val mostAtOnce = AtomicInteger()
@@ -61,11 +63,22 @@ class ParallelDownloadTest {
                 val range = headers["range"]?.removePrefix("bytes=")?.split("-")
                 val useRange = ranges && range != null && rangeRequests.incrementAndGet() <= ignoreRangesAfter
                 val start = if (useRange) range!![0].toLong() else 0L
-                val end = if (useRange && range!![1].isNotEmpty()) range[1].toLong() else data.size - 1L
+                val end = minOf(
+                    if (useRange && range!![1].isNotEmpty()) range[1].toLong() else data.size - 1L,
+                    data.size - 1L,
+                )
                 val out = s.getOutputStream()
+                if (end - start + 1 > maxRange) {
+                    out.write("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
+                    return
+                }
+                if (useRange && start >= data.size) {
+                    out.write("HTTP/1.1 416 Range Not Satisfiable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
+                    return
+                }
                 val head = StringBuilder()
                 head.append(if (useRange) "HTTP/1.1 206 Partial Content\r\n" else "HTTP/1.1 200 OK\r\n")
-                if (useRange) head.append("Content-Range: bytes $start-$end/${data.size}\r\n")
+                if (useRange) head.append("Content-Range: bytes $start-$end/${if (hideTotal) "*" else data.size}\r\n")
                 if (ranges) head.append("Accept-Ranges: bytes\r\n")
                 if (sendLength) head.append("Content-Length: ${end - start + 1}\r\n")
                 head.append("Content-Type: application/octet-stream\r\nConnection: close\r\n\r\n")
@@ -111,6 +124,50 @@ class ParallelDownloadTest {
             d.download(info, raf.channel, cancelled = cancelled)
         }
         return ok to d
+    }
+
+    private fun fetchCapped(server: Server, file: File, cap: Long): Boolean {
+        val d = ParallelDownload(server.url, retryPauseMs = 10, maxRequestBytes = cap)
+        val info = d.probe()
+        return RandomAccessFile(file, "rw").use { raf -> d.download(info, raf.channel) }
+    }
+
+    private fun assertRequestsWithin(server: Server, cap: Long) {
+        assertTrue(server.requests.isNotEmpty())
+        server.requests.forEach { h ->
+            val r = h["range"]?.removePrefix("bytes=")?.split("-")
+            assertTrue("asked without a range: $h", r != null && r[1].isNotEmpty())
+            assertTrue("asked for too much: ${h["range"]}", r!![1].toLong() - r[0].toLong() + 1 <= cap)
+        }
+    }
+
+    @Test
+    fun capped_requests_never_exceed_the_cap() {
+        server.maxRange = 1L shl 20
+        assertTrue(fetchCapped(server, file, 1L shl 20))
+        assertArrayEquals(data, file.readBytes())
+        assertRequestsWithin(server, 1L shl 20)
+    }
+
+    @Test
+    fun capped_download_without_known_length() {
+        server.maxRange = 1L shl 20
+        server.hideTotal = true
+        assertTrue(fetchCapped(server, file, 1L shl 20))
+        assertArrayEquals(data, file.readBytes())
+        assertRequestsWithin(server, 1L shl 20)
+    }
+
+    @Test
+    fun capped_download_of_an_exact_multiple_stops_at_the_end() {
+        val exact = Random(3).nextBytes(2 shl 20)
+        val s2 = Server(exact).apply { maxRange = 1L shl 20; hideTotal = true }
+        try {
+            assertTrue(fetchCapped(s2, file, 1L shl 20))
+            assertArrayEquals(exact, file.readBytes())
+        } finally {
+            s2.close()
+        }
     }
 
     @Test
