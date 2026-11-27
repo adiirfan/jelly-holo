@@ -113,3 +113,35 @@ pub extern "system" fn Java_org_lineageos_jelly_adblock_AdBlock_nativeShouldBloc
     }));
     flag(block.unwrap_or(false))
 }
+
+/// Joins a downloaded TS stream into an MP4 written to `fd` (the caller
+/// keeps the descriptor). 0: done; 1: not something this joiner writes
+/// (left to Android's tools); 2: failed.
+#[no_mangle]
+pub extern "system" fn Java_org_lineageos_jelly_download_NativeRemux_nativeTsToMp4(
+    mut env: JNIEnv,
+    _class: JClass,
+    video: JString,
+    audio: JString,
+    fd: jni::sys::jint,
+) -> jni::sys::jint {
+    use std::fs::File;
+    use std::mem::ManuallyDrop;
+    use std::os::fd::FromRawFd;
+    use std::path::Path;
+
+    use crate::remux::{ts_to_mp4, RemuxError};
+
+    let Some(video) = string(&mut env, &video) else { return 2 };
+    let audio = if audio.is_null() { None } else { string(&mut env, &audio) };
+    let out = catch_unwind(AssertUnwindSafe(|| {
+        // Not ours to close: the app's ParcelFileDescriptor owns it
+        let mut file = ManuallyDrop::new(unsafe { File::from_raw_fd(fd) });
+        match ts_to_mp4(Path::new(&video), audio.as_deref().map(Path::new), &mut *file) {
+            Ok(_) => 0,
+            Err(RemuxError::NotTs | RemuxError::Unsupported(_)) => 1,
+            Err(_) => 2,
+        }
+    }));
+    out.unwrap_or(2)
+}

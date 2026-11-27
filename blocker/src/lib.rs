@@ -8,6 +8,7 @@ use adblock::request::Request;
 use adblock::{Engine, FilterSet};
 
 mod jni;
+pub mod remux;
 
 /// Parse filter lists (EasyList syntax) and return the engine in its saved
 /// form, ready for [`Blocker::load`].

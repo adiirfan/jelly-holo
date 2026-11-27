@@ -221,7 +221,17 @@ class DownloadService : Service() {
 
             item = newItem(job.name, "video/mp4")
             val joinStart = SystemClock.elapsedRealtime()
-            val joined = contentResolver.openFileDescriptor(item, "rw").use { Remux.toMp4(video, audio, it!!.fileDescriptor, log) }
+            // TS pieces: the Rust joiner. Anything it doesn't write (or a failure)
+            // goes to Android's own tools, on a fresh (emptied) file.
+            var how = "rust"
+            var joined = plan.video.init == null && plan.audio?.init == null &&
+                contentResolver.openFileDescriptor(item, "rwt").use {
+                    NativeRemux.tsToMp4(video.path, audio?.path, it!!.fd)
+                }.also { log("rust join: $it") } == NativeRemux.DONE
+            if (!joined) {
+                how = "android"
+                joined = contentResolver.openFileDescriptor(item, "rwt").use { Remux.toMp4(video, audio, it!!.fileDescriptor, log) }
+            }
             val joinSecs = (SystemClock.elapsedRealtime() - joinStart) / 1000.0
             var mime = "video/mp4"
             var name = job.name
@@ -242,7 +252,7 @@ class DownloadService : Service() {
                 null,
             )
             val secs = (SystemClock.elapsedRealtime() - started) / 1000.0
-            Log.i(AdBlock.TAG, "downloaded stream $name: ${plan.pieces} pieces, joined=$joined in $joinSecs s, $secs s")
+            Log.i(AdBlock.TAG, "downloaded stream $name: ${plan.pieces} pieces, joined=$joined ($how) in $joinSecs s, $secs s")
             finished(id, name, item!!, mime)
         } catch (e: HlsDownload.Refused) {
             failed(id, job.name, getString(refusalText(e.reason)))
