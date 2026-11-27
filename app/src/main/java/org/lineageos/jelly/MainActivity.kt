@@ -36,6 +36,14 @@ import android.print.PrintManager
 import android.text.TextUtils
 import android.util.Log
 import android.view.View
+import android.content.pm.ActivityInfo
+import org.lineageos.jelly.video.VideoState
+import org.lineageos.jelly.video.VideoPlayerView
+import android.widget.Toast
+import android.view.MotionEvent
+import android.view.InputDevice
+import android.util.Rational
+import android.app.PictureInPictureParams
 import org.lineageos.jelly.download.DownloadService
 import android.content.pm.PackageManager
 import android.Manifest
@@ -407,6 +415,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                         urlBarLayout.currentMode = UrlBarLayout.UrlBarMode.URL
                     }
 
+                    videoStretched -> unstretchVideo()
+
                     customView != null -> {
                         onHideCustomView()
                     }
@@ -455,6 +465,11 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     override fun onStop() {
+        // The small video window was closed: stop the video too
+        if (videoStretched) {
+            webView.video.send("pause")
+            unstretchVideo()
+        }
         CookieManager.getInstance().flush()
         if (backgroundShortcutServiceConnected) unbindService(serviceConnection)
         unregisterReceiver(urlResolvedReceiver)
@@ -466,7 +481,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         if (picking) stopPicker()
         // The tab screen shows this page as it was left
         if (::webView.isInitialized && !incognito) TabSnapshots.save(this, taskId, webView)
-        if (backgroundShortcutId == null) webView.onPause()
+        // In the small video window the page has to keep playing and drawing
+        if (backgroundShortcutId == null && !isInPictureInPictureMode) webView.onPause()
         super.onPause()
     }
 
@@ -632,7 +648,194 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         }.show()
     }
 
+    // The app's own video player (see video/): a floating "Video" button
+    // while a video plays, and the player over any full-screen video.
+    private var player: VideoPlayerView? = null
+    private var autoOpenedFor: String? = null
+
+    /** The video is stretched over the page in place of full screen (see [stretchVideo]). */
+    private var videoStretched = false
+    private var lastTouch: Pair<Float, Float>? = null
+    private val hideVideoButton = Runnable { videoButton.isVisible = false }
+
+    private val videoButton: View by lazy {
+        layoutInflater.inflate(R.layout.video_button, constraintLayout, false).also { b ->
+            b.setOnClickListener { openPlayer() }
+            constraintLayout.addView(b)
+            (b.layoutParams as ConstraintLayout.LayoutParams).apply {
+                endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                if (sharedPreferencesExt.reachModeEnabled) {
+                    topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                } else {
+                    bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                }
+                b.layoutParams = this
+            }
+        }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN && ::webView.isInitialized && webView.isShown) {
+            val at = IntArray(2).also { webView.getLocationOnScreen(it) }
+            lastTouch = (ev.rawX - at[0]) to (ev.rawY - at[1])
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onVideoState(state: VideoState) {
+        // Videos the user starts open straight in the player (silent previews don't)
+        val key = state.src.ifEmpty { "stream:" + state.title }
+        if (sharedPreferencesExt.videoAutoOpen && state.playing && state.gesture && !state.muted &&
+            !state.fullscreen && customView == null && !videoStretched && autoOpenedFor != key
+        ) {
+            autoOpenedFor = key
+            webView.video.send("enter")
+        }
+
+        if ((customView != null || videoStretched) && state.fullscreen) {
+            showPlayer().update(state)
+            // Wide videos turn the screen sideways, as a phone's own player does
+            if (state.videoW > state.videoH && state.videoH > 0 &&
+                requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            ) {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
+        } else if (!state.fullscreen && !videoStretched) {
+            player?.let { removePlayer() }
+        }
+
+        cancelVideoButtonHide()
+        if (state.playing && !state.fullscreen && customView == null && !videoStretched && state.w >= 200) {
+            videoButton.isVisible = true
+        } else if (videoButton.isVisible) {
+            videoButton.postDelayed(hideVideoButton, if (state.fullscreen) 0 else 4000)
+        }
+    }
+
+    private fun cancelVideoButtonHide() {
+        if (::webView.isInitialized) videoButton.removeCallbacks(hideVideoButton)
+    }
+
+    /** "Video" button: arm the video's frame, then tap the video for it (full screen needs a tap). */
+    private fun openPlayer() {
+        val s = webView.video.state ?: return
+        webView.video.send("arm")
+        val point = if (s.top && s.viewW > 0) {
+            val scale = webView.width.toFloat() / s.viewW
+            (s.x + s.w / 2f) * scale to (s.y + s.h / 2f) * scale
+        } else {
+            lastTouch
+        }
+        point?.let { (x, y) ->
+            val t = SystemClock.uptimeMillis()
+            listOf(MotionEvent.ACTION_DOWN to t, MotionEvent.ACTION_UP to t + 40).forEach { (action, at) ->
+                MotionEvent.obtain(t, at, action, x, y, 0).apply {
+                    source = InputDevice.SOURCE_TOUCHSCREEN
+                    webView.dispatchTouchEvent(this)
+                    recycle()
+                }
+            }
+        }
+        videoButton.postDelayed({
+            if (customView == null) Toast.makeText(this, R.string.vp_tap_video, Toast.LENGTH_LONG).show()
+        }, 1500)
+    }
+
+    private fun showPlayer(): VideoPlayerView {
+        player?.let { return it }
+        val p = layoutInflater.inflate(R.layout.video_player, null) as VideoPlayerView
+        p.host = object : VideoPlayerView.Host {
+            override fun send(cmd: String, vararg args: Pair<String, Any>) =
+                webView.video.send(cmd, *args)
+
+            override fun download(state: VideoState) = downloadVideo(state)
+
+            override fun pictureInPicture(state: VideoState) = enterPip(state)
+
+            override fun close() {
+                if (videoStretched) {
+                    unstretchVideo()
+                    return
+                }
+                webView.video.send("exit")
+                p.postDelayed({ if (customView != null) onHideCustomView() }, 700)
+            }
+        }
+        addContentView(
+            p, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        p.isVisible = !isInPictureInPictureMode
+        player = p
+        return p
+    }
+
+    /**
+     * The web engine leaves full screen when the app shrinks into the small
+     * video window. The page then stretches the video over itself instead,
+     * with the app's bars hidden, so the window (and the app on return)
+     * still shows only the video.
+     */
+    private fun stretchVideo() {
+        videoStretched = true
+        appBarLayout.isVisible = false
+        setImmersiveMode(true)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        webView.video.send("stretch")
+    }
+
+    private fun unstretchVideo() {
+        if (!videoStretched) return
+        videoStretched = false
+        webView.video.send("unstretch")
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        setImmersiveMode(false)
+        appBarLayout.isVisible = !isFullscreenPwa
+        webView.requestFocus()
+        removePlayer()
+    }
+
+    private fun removePlayer() {
+        val p = player ?: return
+        (p.parent as? ViewGroup)?.removeView(p)
+        player = null
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+
+    private fun downloadVideo(state: VideoState) {
+        if (state.kind != "file" || state.src.isEmpty()) {
+            Toast.makeText(this, R.string.vp_stream_no_download, Toast.LENGTH_LONG).show()
+            return
+        }
+        val guessed = UrlUtils.guessFileName(state.src, null, null)
+        val ext = guessed.substringAfterLast('.', "").lowercase()
+        val name = if (ext in VIDEO_EXTENSIONS && state.title.isNotBlank()) {
+            state.title.replace(Regex("""[\\/:*?"<>|]"""), " ").trim().take(80) + "." + ext
+        } else {
+            guessed
+        }
+        fetchFile(state.src, webView.settings.userAgentString, name)
+        Toast.makeText(this, getString(R.string.download_started, name), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun enterPip(state: VideoState) {
+        val (w, h) = if (state.videoW > 0 && state.videoH > 0) state.videoW to state.videoH else 16 to 9
+        val ratio = (w.toFloat() / h).coerceIn(1 / 2.39f, 2.39f)
+        val params = PictureInPictureParams.Builder()
+            .setAspectRatio(Rational((ratio * 1000).toInt(), 1000))
+            .build()
+        runCatching { enterPictureInPictureMode(params) }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        player?.isVisible = !isInPictureInPictureMode
+        if (!isInPictureInPictureMode) player?.poke()
+    }
+
     override fun onPageNavigated() {
+        autoOpenedFor = null
+        unstretchVideo()
+        if (::webView.isInitialized) videoButton.isVisible = false
         if (picking) stopPicker()
     }
 
@@ -887,6 +1090,9 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     override fun onHideCustomView() {
+        // In the small window the player stays: the video is stretched instead
+        val stretch = isInPictureInPictureMode && customView != null
+        if (!stretch) removePlayer()
         val customView = customView ?: return
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setImmersiveMode(false)
@@ -897,6 +1103,9 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         fullScreenCallback?.onCustomViewHidden()
         fullScreenCallback = null
         this.customView = null
+        // Otherwise the address bar takes the focus and opens the keyboard
+        webView.requestFocus()
+        if (stretch) stretchVideo()
     }
 
     private fun addShortcut() {
@@ -1086,6 +1295,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     companion object {
+        private val VIDEO_EXTENSIONS = setOf("mp4", "webm", "mkv", "mov", "m4v", "3gp", "avi")
+
         private val TAG = MainActivity::class.java.simpleName
         private const val MANIFEST_DISPLAY = "manifest_display"
         private const val MANIFEST_THEME_COLOR = "manifest_theme_color"

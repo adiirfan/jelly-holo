@@ -125,6 +125,22 @@ test('an armed tap opens full screen and does not reach the page', async page =>
   assert.strictEqual((await lastState(page)).fullscreen, true);
 });
 
+test("the browser's own video controls are hidden in the player", async page => {
+  await play(page);
+  await page.waitForTimeout(300);
+  await send(page, { cmd: 'arm' });
+  await tapOn(page, '#v');
+  await page.waitForTimeout(500);
+  const r = await page.evaluate(() => [
+    document.getElementById('v').hasAttribute('data-jh-player'),
+    [...document.querySelectorAll('style')].some(st => st.textContent.includes('[data-jh-player]::-webkit-media-controls')),
+  ]);
+  assert.deepStrictEqual(r, [true, true]);
+  await send(page, { cmd: 'exit' });
+  await page.waitForTimeout(400);
+  assert.strictEqual(await page.evaluate(() => document.getElementById('v').hasAttribute('data-jh-player')), false);
+});
+
 test('taps reach the page when not armed', async page => {
   await page.evaluate(() => { window.clicks = 0; document.addEventListener('click', () => window.clicks++); });
   await tapOn(page, '#v');
@@ -164,6 +180,35 @@ test("the site's own full screen shows only the video, covering the site's butto
   await page.waitForTimeout(400);
   const after = await page.evaluate(() => [document.getElementById('v').controls, Math.round(document.getElementById('v').getBoundingClientRect().width)]);
   assert.deepStrictEqual(after, [true, 360], 'the page was not put back as it was');
+});
+
+test('the stretch command fills the page with the video without full screen', async page => {
+  await page.evaluate(() => { document.getElementById('v').controls = true; });
+  await play(page);
+  await page.waitForTimeout(300);
+  await send(page, { cmd: 'stretch' });
+  await page.waitForTimeout(300);
+  const r = await page.evaluate(() => {
+    const v = document.getElementById('v').getBoundingClientRect();
+    const fb = document.getElementById('fsbtn').getBoundingClientRect();
+    const top = document.elementFromPoint(fb.left + 5, fb.top + 5);
+    return { full: v.left === 0 && v.top === 0 && v.width === innerWidth && v.height === innerHeight,
+             covered: top && top.id, controls: document.getElementById('v').controls, fs: !!document.fullscreenElement };
+  });
+  assert.deepStrictEqual(r, { full: true, covered: 'v', controls: false, fs: false });
+  assert.strictEqual((await lastState(page)).fullscreen, true, 'the app must keep its player up');
+  await send(page, { cmd: 'unstretch' });
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => [document.getElementById('v').controls, Math.round(document.getElementById('v').getBoundingClientRect().width)]);
+  assert.deepStrictEqual(after, [true, 360], 'the page was not put back as it was');
+  assert.strictEqual((await lastState(page)).fullscreen, false);
+});
+
+test('the pause command pauses', async page => {
+  await play(page);
+  await page.waitForTimeout(300);
+  await send(page, { cmd: 'pause' });
+  assert.strictEqual(await page.evaluate(() => document.getElementById('v').paused), true);
 });
 
 test('state reports are limited to about two a second', async page => {

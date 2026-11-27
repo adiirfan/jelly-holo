@@ -25,6 +25,8 @@ import org.lineageos.jelly.js.JsManifest
 import org.lineageos.jelly.js.JsMediaSession
 import org.lineageos.jelly.js.JsShare
 import org.lineageos.jelly.js.JsElementHide
+import org.lineageos.jelly.utils.AssetLoader
+import org.lineageos.jelly.video.VideoBridge
 import org.lineageos.jelly.js.JsSyncUrl
 import org.lineageos.jelly.shortcut.BackgroundShortcut
 import org.lineageos.jelly.shortcut.BackgroundShortcutService
@@ -77,6 +79,9 @@ class WebViewExt @JvmOverloads constructor(
 
     /** After "Go anyway", ad redirects aren't stopped in this tab until this time. */
     var jumpsAllowedUntil = 0L
+
+    /** The line to the video player script in every frame of this tab. */
+    val video = VideoBridge { s -> if (::activity.isInitialized) activity.onVideoState(s) }
 
     fun onElementPicked(label: String) {
         if (::activity.isInitialized) activity.onElementPicked(label)
@@ -193,6 +198,13 @@ class WebViewExt @JvmOverloads constructor(
             // Hide the user's chosen elements before the page first draws.
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                 WebViewCompat.addDocumentStartJavaScript(this, JsElementHide.SCRIPT, setOf("*"))
+            }
+            // The app's own video player: a script in every frame reports the
+            // video and takes the player's commands
+            if (video.attach(this)) {
+                WebViewCompat.addDocumentStartJavaScript(
+                    this, AssetLoader.loadAsset(resources, "video.js"), setOf("*")
+                )
             }
         }
     }

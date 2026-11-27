@@ -88,6 +88,9 @@ class SharedPreferencesExt(context: Context) {
             FULLSCREEN_SHORTCUTS_ENABLED_KEY, FULLSCREEN_SHORTCUTS_ENABLED_DEFAULT
         )
 
+    val videoAutoOpen: Boolean
+        get() = sharedPreferences.getBoolean("key_video_auto", true)
+
     val fastDownloads: Boolean
         get() = sharedPreferences.getBoolean(FAST_DOWNLOADS_KEY, true)
 

@@ -88,6 +88,18 @@
 
     <PreferenceCategory
         app:iconSpaceReserved="false"
+        app:title="@string/pref_video_category">
+
+        <SwitchPreference
+            app:defaultValue="true"
+            app:iconSpaceReserved="false"
+            app:key="key_video_auto"
+            app:summary="@string/pref_video_auto_summary"
+            app:title="@string/pref_video_auto_title" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
         app:title="@string/pref_downloads_category">
 
         <SwitchPreference

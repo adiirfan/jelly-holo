@@ -217,6 +217,14 @@
         <item name="shapeAppearance">@style/ShapeAppearance.Holo</item>
     </style>
 
+    <style name="Widget.Holo.VideoButton" parent="">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:tint">@android:color/white</item>
+    </style>
+
     <style name="Widget.Holo.Snackbar" parent="Widget.Material3.Snackbar">
         <item name="shapeAppearance">@style/ShapeAppearance.Holo</item>
     </style>

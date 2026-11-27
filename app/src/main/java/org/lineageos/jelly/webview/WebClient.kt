@@ -126,6 +126,7 @@ internal class WebClient(
         super.onPageStarted(view, url, favicon)
         urlBarLayout.onPageLoadStarted(url)
         (view as? WebViewExt)?.startedUrl = url
+        (view as? WebViewExt)?.video?.reset()
         (context as? WebViewExtActivity)?.onPageNavigated()
         if (view.settings.javaScriptEnabled) {
             view.evaluateJavascript(scripts, null)

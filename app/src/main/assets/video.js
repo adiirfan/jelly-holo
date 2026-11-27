@@ -14,6 +14,8 @@
   let armTimer = null;
   let lastPost = 0;
   let pending = null;
+  // Stretched over the page by the app, with no full screen (the small video window)
+  let stretched = null;
 
   const channel = () => window.jhVideo;
 
@@ -56,7 +58,7 @@
       vh: v.videoHeight || 0,
       viewW: window.innerWidth,
       top: window.top === window,
-      fullscreen: !!fs && (fs === v || fs.contains(v)),
+      fullscreen: (!!fs && (fs === v || fs.contains(v))) || stretched === v,
       gesture: !!(navigator.userActivation && navigator.userActivation.isActive),
       muted: v.muted,
       title: document.title || '',
@@ -97,17 +99,22 @@
   // a second tap: the first one is used up.)
   const COVER = 'data-jh-player';
   let coverStyle = null;
-  function cover(v) {
+  // In the player the browser's own video controls go too: one player only.
+  function cover(v, stretch) {
     if (!coverStyle) {
       coverStyle = document.createElement('style');
-      coverStyle.textContent = '[' + COVER + ']{position:fixed!important;left:0!important;top:0!important;' +
+      coverStyle.textContent =
+        '[' + COVER + ']::-webkit-media-controls,[' + COVER + ']::-webkit-media-controls-enclosure,' +
+        '[' + COVER + ']::-webkit-media-controls-panel,[' + COVER + ']::-webkit-media-controls-overlay-play-button,' +
+        '[' + COVER + ']::-webkit-media-controls-start-playback-button{display:none!important}' +
+        '[' + COVER + '=stretch]{position:fixed!important;left:0!important;top:0!important;' +
         'right:auto!important;bottom:auto!important;width:100vw!important;height:100vh!important;' +
         'max-width:none!important;max-height:none!important;min-width:0!important;min-height:0!important;' +
         'margin:0!important;padding:0!important;transform:none!important;z-index:2147483647!important;' +
         'background:#000!important;object-fit:contain!important;visibility:visible!important;opacity:1!important}';
     }
     (document.head || document.documentElement).appendChild(coverStyle);
-    v.setAttribute(COVER, '');
+    v.setAttribute(COVER, stretch ? 'stretch' : '');
   }
 
   function restore(v) {
@@ -122,11 +129,11 @@
     if (!active) return;
     const fs = fsElement();
     if (!fs) {
-      restore(active);
+      if (stretched !== active) restore(active);
     } else if (fs.contains(active)) {
       if (active.__jhControls === undefined) active.__jhControls = active.controls;
       active.controls = false;
-      if (fs !== active) cover(active);
+      cover(active, fs !== active);
     }
     post(true);
   }
@@ -170,6 +177,23 @@
       case 'enter': enter(); break;
       case 'exit':
         if (fsElement()) (document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen());
+        break;
+      case 'stretch':
+        if (!v) break;
+        if (v.__jhControls === undefined) v.__jhControls = v.controls;
+        v.controls = false;
+        cover(v, true);
+        stretched = v;
+        post(true);
+        break;
+      case 'unstretch':
+        if (!stretched) break;
+        if (!fsElement()) restore(stretched);
+        stretched = null;
+        post(true);
+        break;
+      case 'pause':
+        if (v) v.pause();
         break;
       case 'toggle':
         if (v) { if (v.paused || v.ended) v.play().catch(() => {}); else v.pause(); }
