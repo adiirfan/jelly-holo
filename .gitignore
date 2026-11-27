@@ -9,7 +9,6 @@
 
 # Jelly Holo build outputs
 /app/src/main/jniLibs/
-/app/src/main/assets/adblock.dat
 /blocker/target/
 /blocker/lists/
 

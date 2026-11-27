@@ -244,3 +244,13 @@ fn popup_exceptions_do_not_unblock_pages() {
     assert!(b.load(&compile(&["||ads.example^\n@@||news.example^$popup"])));
     assert!(b.should_block("https://ads.example/a.js", "https://news.example/", "*/*"));
 }
+
+#[test]
+fn no_lists_at_all_still_load_and_block_nothing() {
+    // Every list switched off or removed: the app loads an empty engine
+    let b = Blocker::new();
+    let bytes = compile(&[]);
+    assert!(!bytes.is_empty());
+    assert!(b.load(&bytes));
+    assert!(!b.should_block("https://ads.example.com/banner.js", PAGE, ANY));
+}

@@ -101,10 +101,6 @@ class SharedPreferencesExt(context: Context) {
         get() = sharedPreferences.getStringSet(ADBLOCK_ALLOWED_HOSTS_KEY, setOf<String>())!!
         set(value) = sharedPreferences.edit { putStringSet(ADBLOCK_ALLOWED_HOSTS_KEY, value) }
 
-    var adBlockListsUpdated: Long
-        get() = sharedPreferences.getLong(ADBLOCK_LISTS_UPDATED_KEY, 0L)
-        set(value) = sharedPreferences.edit { putLong(ADBLOCK_LISTS_UPDATED_KEY, value) }
-
     var darkPages: Boolean
         get() = sharedPreferences.getBoolean(DARK_PAGES_KEY, false)
         set(value) = sharedPreferences.edit { putBoolean(DARK_PAGES_KEY, value) }
@@ -123,7 +119,6 @@ class SharedPreferencesExt(context: Context) {
         const val ADBLOCK_ENABLED_KEY = "key_adblock_enabled"
         private const val ADBLOCK_ENABLED_DEFAULT = true
         private const val ADBLOCK_ALLOWED_HOSTS_KEY = "key_adblock_allowed_hosts"
-        private const val ADBLOCK_LISTS_UPDATED_KEY = "key_adblock_lists_updated"
 
         private const val DESKTOP_SHORTCUTS_KEY = "desktop_shortcuts"
 

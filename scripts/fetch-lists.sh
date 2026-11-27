@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download the block lists the build compiles into the app.
+# Download EasyList and EasyPrivacy for the blocker's tests (the app fetches its own lists).
 set -euo pipefail
 cd "$(dirname "$0")/../blocker"
 mkdir -p lists

@@ -77,8 +77,8 @@
 
         <Preference
             app:iconSpaceReserved="false"
-            app:key="key_adblock_update"
-            app:title="@string/pref_adblock_update_title" />
+            app:key="key_block_lists"
+            app:title="@string/pref_block_lists_title" />
 
         <Preference
             app:iconSpaceReserved="false"

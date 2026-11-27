@@ -112,11 +112,14 @@ object BlockLists {
         .firstOrNull { it.startsWith("!") && it.drop(1).trimStart().startsWith("$key:", ignoreCase = true) }
         ?.substringAfter(':')?.trim()
 
-    /** Lists from an address that are on and past their refresh; a failed one waits an hour. */
-    fun due(lists: List<BlockList>, now: Long): List<BlockList> = lists.filter {
+    /**
+     * Lists from an address that are on and past their refresh. A failed one waits an hour,
+     * unless [retryFailed] (the connection just came back).
+     */
+    fun due(lists: List<BlockList>, now: Long, retryFailed: Boolean = false): List<BlockList> = lists.filter {
         it.on && it.url != null &&
             (it.updated == 0L || now - it.updated >= it.expiresMs) &&
-            (it.error == null || now - it.triedAt >= RETRY_MS)
+            (retryFailed || it.error == null || now - it.triedAt >= RETRY_MS)
     }
 
     fun suggestionsLeft(lists: List<BlockList>): List<SuggestedList> =

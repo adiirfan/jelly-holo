@@ -82,6 +82,13 @@ class BlockListsTest {
     }
 
     @Test
+    fun when_the_connection_comes_back_a_failed_download_is_tried_at_once() {
+        val now = 100 * day
+        val failed = BlockList("1", "X", "https://a.example/l.txt", error = "no internet connection", triedAt = now - 60_000)
+        assertEquals(1, BlockLists.due(listOf(failed), now, retryFailed = true).size)
+    }
+
+    @Test
     fun suggestions_leave_out_lists_already_added() {
         val added = BlockLists.firstRun(null)
         val left = BlockLists.suggestionsLeft(added).map { it.url }

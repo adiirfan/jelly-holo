@@ -27,6 +27,7 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreference
 import com.google.android.material.checkbox.MaterialCheckBox
 import org.lineageos.jelly.adblock.AdBlock
+import org.lineageos.jelly.adblock.BlockListsActivity
 import org.lineageos.jelly.utils.SharedPreferencesExt
 import org.lineageos.jelly.ytdlp.Outcome
 import org.lineageos.jelly.ytdlp.YtDlpRuntime
@@ -94,7 +95,6 @@ class SettingsActivity : AppCompatActivity() {
                     preferenceScreen.removePreference(it)
                 }
             }
-            findPreference<Preference>("key_adblock_update")?.summary = adBlockUpdateSummary()
             findPreference<Preference>("key_hidden_elements")?.let { it.summary = hiddenSummary() }
             findPreference<Preference>("key_ytdlp")?.let { showYtDlpVersion(it) }
             findPreference<Preference>("key_version")?.summary = runCatching {
@@ -128,8 +128,8 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
 
-                "key_adblock_update" -> {
-                    updateBlockLists(preference)
+                "key_block_lists" -> {
+                    startActivity(Intent(requireContext(), BlockListsActivity::class.java))
                     true
                 }
 
@@ -267,35 +267,22 @@ class SettingsActivity : AppCompatActivity() {
                 .show()
         }
 
-        private var updating = false
-
-        private fun updateBlockLists(preference: Preference) {
-            if (updating) return
-            updating = true
-            preference.summary = getString(R.string.pref_adblock_update_running)
-            AdBlock.update(requireContext()) { ok, message ->
-                updating = false
-                if (ok) sharedPreferencesExt.adBlockListsUpdated = System.currentTimeMillis()
-                if (!isAdded) return@update
-                preference.summary = if (ok) {
-                    adBlockUpdateSummary()
-                } else {
-                    getString(R.string.pref_adblock_update_failed, message)
-                }
-            }
+        override fun onResume() {
+            super.onResume()
+            findPreference<Preference>("key_block_lists")?.summary = blockListsSummary()
         }
 
-        private fun adBlockUpdateSummary(): String {
-            val updated = sharedPreferencesExt.adBlockListsUpdated
-            return if (updated == 0L) {
-                getString(R.string.pref_adblock_update_bundled)
-            } else {
-                getString(
-                    R.string.pref_adblock_update_date,
-                    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
-                        .format(Date(updated))
-                )
-            }
+        /** "2 lists on · updated 3 Dec", or that none are on, or that they're still downloading. */
+        private fun blockListsSummary(): String {
+            val on = AdBlock.lists(requireContext()).filter { it.on }
+            if (on.isEmpty()) return getString(R.string.pref_block_lists_none)
+            val newest = on.maxOf { it.updated }
+            if (newest == 0L) return getString(R.string.pref_block_lists_waiting)
+            return getString(
+                R.string.pref_block_lists_summary,
+                resources.getQuantityString(R.plurals.block_lists_on, on.size, on.size),
+                DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(newest)),
+            )
         }
 
         private fun homePagePrefSummary() =

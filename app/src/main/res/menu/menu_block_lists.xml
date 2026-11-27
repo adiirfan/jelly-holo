@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: Jelly Holo contributors
+     SPDX-License-Identifier: Apache-2.0
+-->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        style="@style/Theme.Jelly.MenuIcon"
+        android:id="@+id/menu_block_lists_update"
+        android:icon="@drawable/ic_refresh"
+        android:title="@string/block_lists_update"
+        app:showAsAction="always" />
+    <item
+        style="@style/Theme.Jelly.MenuIcon"
+        android:id="@+id/menu_block_lists_add"
+        android:icon="@drawable/ic_add"
+        android:title="@string/block_lists_add"
+        app:showAsAction="always" />
+</menu>
