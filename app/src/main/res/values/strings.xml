@@ -268,6 +268,21 @@
     <string name="pref_adblock_update_failed">Couldn\'t update: %1$s. Still using the old lists.</string>
     <string name="adblock_allow_site">Allow ads on this site</string>
     <string name="adblock_blocked_count">Ads blocked: %1$d</string>
+    <string name="menu_hide_element">Hide an element</string>
+    <string name="picker_hint">Tap the part of the page you want to hide</string>
+    <string name="picker_cancel">Cancel</string>
+    <string name="picker_smaller">Smaller</string>
+    <string name="picker_bigger">Bigger</string>
+    <string name="picker_hide">Hide</string>
+    <string name="picker_needs_js">Hiding elements needs JavaScript, which is turned off in Settings</string>
+    <string name="picker_hidden">Hidden on %1$s</string>
+    <string name="picker_failed">Couldn\'t hide that element</string>
+    <string name="picker_undo">Undo</string>
+    <string name="pref_hidden_elements_title">Hidden elements</string>
+    <string name="pref_hidden_elements_none">Nothing hidden yet. Use \"Hide an element\" in the menu.</string>
+    <string name="pref_hidden_elements_count">%1$d hidden. Tap to see or remove them.</string>
+    <string name="hidden_elements_remove_title">Show this again?</string>
+    <string name="hidden_elements_remove">Show again</string>
 
     <!-- Jelly Holo: look -->
     <string name="pref_look_title">Look</string>

@@ -63,3 +63,11 @@ fn bad_url_gives_nothing() {
     assert_eq!(r.hide_css("not a url"), "");
     assert_eq!(r.hide_css(""), "");
 }
+
+#[test]
+fn attribute_selectors_survive() {
+    let r = rules("example.com##iframe[id^=\"sp_message_iframe_\"]\nexample.com##div[data-component=\"most-popular\"]");
+    let css = r.hide_css("https://www.example.com/");
+    assert!(css.contains("iframe[id^=\"sp_message_iframe_\"]{display:none!important}"), "{css}");
+    assert!(css.contains("div[data-component=\"most-popular\"]{display:none!important}"), "{css}");
+}

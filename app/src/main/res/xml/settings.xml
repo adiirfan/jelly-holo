@@ -79,6 +79,11 @@
             app:iconSpaceReserved="false"
             app:key="key_adblock_update"
             app:title="@string/pref_adblock_update_title" />
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="key_hidden_elements"
+            app:title="@string/pref_hidden_elements_title" />
     </PreferenceCategory>
 
     <PreferenceCategory

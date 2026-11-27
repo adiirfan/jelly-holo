@@ -97,6 +97,13 @@
             <View style="@style/Widget.Holo.MenuDivider" />
 
             <TextView
+                android:id="@+id/hideElementButton"
+                style="@style/Widget.Holo.MenuRow"
+                android:text="@string/menu_hide_element" />
+
+            <View style="@style/Widget.Holo.MenuDivider" />
+
+            <TextView
                 android:id="@+id/addToHomeScreenButton"
                 style="@style/Widget.Holo.MenuRow"
                 android:text="@string/menu_shortcut" />

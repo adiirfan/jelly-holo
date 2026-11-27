@@ -36,6 +36,11 @@ import android.print.PrintManager
 import android.text.TextUtils
 import android.util.Log
 import android.view.View
+import android.widget.TextView
+import org.lineageos.jelly.utils.AssetLoader
+import org.lineageos.jelly.js.JsElementHide
+import org.lineageos.jelly.adblock.ElementRules
+import org.json.JSONArray
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -285,6 +290,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                     }, 300)
                 }
 
+                MenuDialog.Option.HIDE_ELEMENT -> startPicker()
+
                 MenuDialog.Option.FIND_IN_PAGE -> {
                     // Run the search setup
                     showSearch()
@@ -390,6 +397,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         onBackPressedDispatcher.addCallback(object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    picking -> stopPicker()
+
                     urlBarLayout.currentMode == UrlBarLayout.UrlBarMode.SEARCH -> {
                         urlBarLayout.currentMode = UrlBarLayout.UrlBarMode.URL
                     }
@@ -450,6 +459,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     public override fun onPause() {
+        if (picking) stopPicker()
         // The tab screen shows this page as it was left
         if (::webView.isInitialized && !incognito) TabSnapshots.save(this, taskId, webView)
         if (backgroundShortcutId == null) webView.onPause()
@@ -532,6 +542,99 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                 )
                 .build()
         )
+    }
+
+    // "Hide an element": the picker runs in the page (assets/picker.js); this
+    // bar at the foot of the screen drives it.
+    private var picking = false
+    private val pickerBar: View by lazy {
+        layoutInflater.inflate(R.layout.picker_bar, constraintLayout, false).also { bar ->
+            bar.findViewById<View>(R.id.pickerCancel).setOnClickListener { stopPicker() }
+            bar.findViewById<View>(R.id.pickerSmaller).setOnClickListener {
+                webView.evaluateJavascript("window.__jhPicker && __jhPicker.smaller()", null)
+            }
+            bar.findViewById<View>(R.id.pickerBigger).setOnClickListener {
+                webView.evaluateJavascript("window.__jhPicker && __jhPicker.bigger()", null)
+            }
+            bar.findViewById<View>(R.id.pickerHide).setOnClickListener { hidePicked() }
+            constraintLayout.addView(bar)
+        }
+    }
+
+    private fun startPicker() {
+        if (!webView.settings.javaScriptEnabled) {
+            Snackbar.make(constraintLayout, R.string.picker_needs_js, Snackbar.LENGTH_LONG).show()
+            return
+        }
+        if (urlBarLayout.currentMode == UrlBarLayout.UrlBarMode.SEARCH) {
+            urlBarLayout.currentMode = UrlBarLayout.UrlBarMode.URL
+        }
+        val script = AssetLoader.loadAsset(resources, "picker.js")
+        webView.evaluateJavascript("$script\n__jhPicker.start();", null)
+        picking = true
+        (pickerBar.layoutParams as ConstraintLayout.LayoutParams).apply {
+            width = 0
+            startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            // Away from the toolbar: at the foot normally, at the top in one-handed mode
+            if (sharedPreferencesExt.reachModeEnabled) {
+                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            } else {
+                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                topToTop = ConstraintLayout.LayoutParams.UNSET
+            }
+            pickerBar.layoutParams = this
+        }
+        showPicked("")
+        pickerBar.isVisible = true
+    }
+
+    private fun stopPicker() {
+        if (!picking) return
+        picking = false
+        pickerBar.isVisible = false
+        webView.evaluateJavascript("window.__jhPicker && __jhPicker.stop()", null)
+    }
+
+    private fun showPicked(label: String) {
+        pickerBar.findViewById<TextView>(R.id.pickerLabel).text =
+            label.ifEmpty { getString(R.string.picker_hint) }
+        listOf(R.id.pickerSmaller, R.id.pickerBigger, R.id.pickerHide).forEach { id ->
+            pickerBar.findViewById<View>(id).apply {
+                isEnabled = label.isNotEmpty()
+                alpha = if (isEnabled) 1f else 0.4f
+            }
+        }
+    }
+
+    override fun onElementPicked(label: String) {
+        if (picking) showPicked(label)
+    }
+
+    override fun onPageNavigated() {
+        if (picking) stopPicker()
+    }
+
+    private fun hidePicked() {
+        webView.evaluateJavascript("window.__jhPicker ? __jhPicker.selector() : ''") { result ->
+            val selector = runCatching { JSONArray("[$result]").getString(0) }.getOrDefault("")
+            val rule = if (selector.isEmpty()) null else ElementRules.add(this, webView.url, selector)
+            stopPicker()
+            if (rule == null) {
+                Snackbar.make(constraintLayout, R.string.picker_failed, Snackbar.LENGTH_SHORT).show()
+                return@evaluateJavascript
+            }
+            webView.evaluateJavascript(JsElementHide.SCRIPT, null)
+            Snackbar.make(
+                constraintLayout,
+                getString(R.string.picker_hidden, ElementRules.site(rule)),
+                Snackbar.LENGTH_LONG
+            ).setAction(R.string.picker_undo) {
+                ElementRules.remove(this, rule)
+                webView.evaluateJavascript(JsElementHide.SCRIPT, null)
+            }.show()
+        }
     }
 
     private fun showSearch() {

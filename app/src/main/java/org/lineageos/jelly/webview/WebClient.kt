@@ -37,6 +37,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.snackbar.Snackbar
 import org.lineageos.jelly.R
+import org.lineageos.jelly.js.JsElementHide
 import org.lineageos.jelly.js.JsManifest
 import org.lineageos.jelly.js.JsMediaSession
 import org.lineageos.jelly.js.JsShare
@@ -83,6 +84,7 @@ internal class WebClient(
         val url = request.url.toString()
         if (request.isForMainFrame) {
             pageUrl = url
+            ext.pageUrl = url
             pageStartedAt = SystemClock.elapsedRealtime()
             if (AdBlock.logging) startDataLog(ext, request.url.host)
             ext.blockedCount.set(0)
@@ -123,8 +125,12 @@ internal class WebClient(
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         urlBarLayout.onPageLoadStarted(url)
+        (view as? WebViewExt)?.startedUrl = url
+        (context as? WebViewExtActivity)?.onPageNavigated()
         if (view.settings.javaScriptEnabled) {
             view.evaluateJavascript(scripts, null)
+            // Fallback for WebViews without document-start scripts; harmless twice.
+            view.evaluateJavascript(JsElementHide.SCRIPT, null)
         }
     }
 

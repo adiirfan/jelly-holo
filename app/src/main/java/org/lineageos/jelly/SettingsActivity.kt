@@ -8,6 +8,7 @@ package org.lineageos.jelly
 import android.content.DialogInterface
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import org.lineageos.jelly.adblock.ElementRules
 import android.view.MenuItem
 import android.view.View
 import android.webkit.CookieManager
@@ -87,6 +88,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
             findPreference<Preference>("key_adblock_update")?.summary = adBlockUpdateSummary()
+            findPreference<Preference>("key_hidden_elements")?.let { it.summary = hiddenSummary() }
             findPreference<SwitchPreference>("key_web_debugging")?.onPreferenceChangeListener =
                 Preference.OnPreferenceChangeListener { _, newValue ->
                     WebView.setWebContentsDebuggingEnabled(newValue as Boolean)
@@ -120,6 +122,11 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
 
+                "key_hidden_elements" -> {
+                    showHiddenElements(preference)
+                    true
+                }
+
                 "key_cookie_clear" -> {
                     CookieManager.getInstance().removeAllCookies(null)
                     Toast.makeText(
@@ -133,6 +140,37 @@ class SettingsActivity : AppCompatActivity() {
                     super.onPreferenceTreeClick(preference)
                 }
             }
+        }
+
+        private fun hiddenSummary(): String {
+            val n = ElementRules.all().size
+            return if (n == 0) getString(R.string.pref_hidden_elements_none)
+            else getString(R.string.pref_hidden_elements_count, n)
+        }
+
+        /** The user's hidden elements, by site; tapping one offers to show it again. */
+        private fun showHiddenElements(preference: Preference) {
+            val rules = ElementRules.all().sortedBy { ElementRules.site(it) }
+            if (rules.isEmpty()) return
+            val context = preference.context
+            AlertDialog.Builder(context)
+                .setTitle(R.string.pref_hidden_elements_title)
+                .setItems(rules.map { "${ElementRules.site(it)}  ·  ${ElementRules.selector(it)}" }
+                    .toTypedArray()) { _, which ->
+                    val rule = rules[which]
+                    AlertDialog.Builder(context)
+                        .setTitle(R.string.hidden_elements_remove_title)
+                        .setMessage("${ElementRules.site(rule)}\n${ElementRules.selector(rule)}")
+                        .setPositiveButton(R.string.hidden_elements_remove) { _, _ ->
+                            ElementRules.remove(context, rule)
+                            preference.summary = hiddenSummary()
+                            showHiddenElements(preference)
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
         }
 
         private fun editHomePage(preference: Preference) {

@@ -8,6 +8,7 @@ package org.lineageos.jelly.webview
 import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -23,6 +24,7 @@ import org.lineageos.jelly.R
 import org.lineageos.jelly.js.JsManifest
 import org.lineageos.jelly.js.JsMediaSession
 import org.lineageos.jelly.js.JsShare
+import org.lineageos.jelly.js.JsElementHide
 import org.lineageos.jelly.js.JsSyncUrl
 import org.lineageos.jelly.shortcut.BackgroundShortcut
 import org.lineageos.jelly.shortcut.BackgroundShortcutService
@@ -65,6 +67,17 @@ class WebViewExt @JvmOverloads constructor(
     val checkCpuNanos = AtomicLong()
 
     fun blockedOnPage(): Int = blockedCount.get()
+
+    /** The page this tab is loading: its first request, and the address it started at. */
+    @Volatile
+    var pageUrl = ""
+
+    @Volatile
+    var startedUrl = ""
+
+    fun onElementPicked(label: String) {
+        if (::activity.isInitialized) activity.onElementPicked(label)
+    }
 
     /**
      * Let Android repaint web pages dark. It only takes effect while the app
@@ -173,6 +186,11 @@ class WebViewExt @JvmOverloads constructor(
                 JsShare(activity),
                 JsShare.INTERFACE
             )
+            addJavascriptInterface(JsElementHide(this), JsElementHide.INTERFACE)
+            // Hide the user's chosen elements before the page first draws.
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                WebViewCompat.addDocumentStartJavaScript(this, JsElementHide.SCRIPT, setOf("*"))
+            }
         }
     }
 

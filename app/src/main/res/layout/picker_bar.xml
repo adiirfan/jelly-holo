@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<!-- Shown at the foot of the page while picking an element to hide. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pickerBar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/holo_toolbar"
+    android:clickable="true"
+    android:elevation="8dp"
+    android:focusable="true"
+    android:orientation="vertical">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:background="@color/holo_blue" />
+
+    <TextView
+        android:id="@+id/pickerLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="middle"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="4dp"
+        android:singleLine="true"
+        android:text="@string/picker_hint"
+        android:textColor="@color/holo_text"
+        android:textSize="15sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="4dp">
+
+        <Button
+            android:id="@+id/pickerCancel"
+            style="@style/Widget.Holo.Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/picker_cancel" />
+
+        <Button
+            android:id="@+id/pickerSmaller"
+            style="@style/Widget.Holo.Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="@string/picker_smaller" />
+
+        <Button
+            android:id="@+id/pickerBigger"
+            style="@style/Widget.Holo.Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="@string/picker_bigger" />
+
+        <Button
+            android:id="@+id/pickerHide"
+            style="@style/Widget.Holo.Button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="@string/picker_hide"
+            android:textColor="@color/holo_blue"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>

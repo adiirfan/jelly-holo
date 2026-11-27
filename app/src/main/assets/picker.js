@@ -6,6 +6,7 @@
   if (window.__jhPicker) return;
 
   const BOX_ID = '__jh_pick_box';
+  const CATCH_ID = '__jh_pick_catch';
   const esc = s => CSS.escape(s);
 
   // Names that sites generate per build or per visit: hashes, long digit
@@ -54,7 +55,16 @@
   // Labels sites put on sections on purpose, for their own tests and stats.
   const LABELS = ['data-testid', 'data-test-id', 'data-qa', 'data-component', 'data-module', 'data-link-name'];
   const goodValue = v => !!v && v.length <= 40 && !/\d{3,}/.test(v) && !/["\\\n]/.test(v);
+  // "sp_message_iframe_1533645": a fixed start plus a number that changes
+  // per visit. The fixed start is a good name on its own.
+  const idStart = el => {
+    if (!el.id || goodId(el)) return '';
+    const m = /^([A-Za-z][A-Za-z_-]*[_-])\d+$/.exec(el.id);
+    return m && m[1].length >= 4 && !generated(m[1]) ? m[1] : '';
+  };
   const labelAttr = el => {
+    const start = idStart(el);
+    if (start) return '[id^="' + start + '"]';
     for (const a of LABELS) {
       const v = el.getAttribute(a);
       if (goodValue(v)) return '[' + a + '="' + v + '"]';
@@ -126,6 +136,16 @@
   let current = null;
   let smallerStack = [];
   let box = null;
+  // A clear sheet over the whole page while picking: every tap lands on it,
+  // even over frames from other sites that would otherwise take the tap.
+  let catcher = null;
+
+  function under(x, y) {
+    if (catcher) catcher.style.display = 'none';
+    const el = document.elementFromPoint(x, y);
+    if (catcher) catcher.style.display = 'block';
+    return el;
+  }
 
   function label(el) {
     const r = el.getBoundingClientRect();
@@ -163,8 +183,8 @@
   function onClick(e) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    const el = e.target;
-    if (el && el.nodeType === 1 && el.id !== BOX_ID && el !== document.documentElement) {
+    const el = under(e.clientX, e.clientY);
+    if (el && el.nodeType === 1 && el.id !== BOX_ID && el.id !== CATCH_ID && el !== document.documentElement) {
       smallerStack = [];
       chose(el === document.body ? null : el);
     }
@@ -186,6 +206,12 @@
         'position:fixed;display:none;box-sizing:border-box;pointer-events:none;z-index:2147483647;' +
         'border:2px solid #33B5E5;background:rgba(51,181,229,.25);margin:0;padding:0';
       document.documentElement.appendChild(box);
+      catcher = document.createElement('div');
+      catcher.id = CATCH_ID;
+      catcher.style.cssText =
+        'position:fixed;left:0;top:0;right:0;bottom:0;display:block;z-index:2147483646;' +
+        'background:transparent;margin:0;padding:0;border:0';
+      document.documentElement.appendChild(catcher);
       window.addEventListener('click', onClick, true);
       SWALLOWED.forEach(t => window.addEventListener(t, swallow, true));
       window.addEventListener('scroll', draw, true);
@@ -215,7 +241,9 @@
       window.removeEventListener('scroll', draw, true);
       window.removeEventListener('resize', draw, true);
       if (box) box.remove();
+      if (catcher) catcher.remove();
       box = null;
+      catcher = null;
       current = null;
       smallerStack = [];
     },

@@ -47,6 +47,7 @@ object AdBlock {
         started = true
         val app = context.applicationContext
         thread(name = "AdBlockLoad") {
+            ElementRules.load(app)
             val t = SystemClock.elapsedRealtime()
             val saved = File(app.filesDir, SAVED)
             val from = when {
@@ -65,6 +66,11 @@ object AdBlock {
 
     fun shouldBlock(url: String, pageUrl: String, accept: String): Boolean =
         nativeShouldBlock(url, pageUrl, accept)
+
+    /** The stylesheet that hides the user's chosen elements on the page at `url`. */
+    fun hideCss(url: String): String = nativeHideCss(url) ?: ""
+
+    fun setElementRules(rules: List<String>) = nativeSetElementRules(rules.joinToString("\n"))
 
     /** Download fresh lists, compile and save them, then use them. */
     fun update(context: Context, done: (ok: Boolean, message: String) -> Unit) {
@@ -119,4 +125,10 @@ object AdBlock {
 
     @JvmStatic
     private external fun nativeShouldBlock(url: String, pageUrl: String, accept: String): Boolean
+
+    @JvmStatic
+    private external fun nativeSetElementRules(rules: String)
+
+    @JvmStatic
+    private external fun nativeHideCss(url: String): String?
 }

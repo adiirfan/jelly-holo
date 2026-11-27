@@ -40,4 +40,10 @@ abstract class WebViewExtActivity : AppCompatActivity() {
     )
     abstract fun webProtectedMedia(origin: String, cb: ((granted: Boolean) -> Unit))
     abstract fun onWebShare(value: WebShare)
+
+    /** The element picker chose something (`label` describes it; empty for nothing). */
+    open fun onElementPicked(label: String) {}
+
+    /** A new page started loading in this tab. */
+    open fun onPageNavigated() {}
 }

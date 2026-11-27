@@ -24,12 +24,25 @@ const FIXTURE = `<!doctype html><html><head><meta name=viewport content="width=d
 <div class="dcr-idhxvk"><u>letters-only hash</u></div>
 <i class="dcr-a1b2c3"></i><i class="dcr-q9w8e7"></i><i class="dcr-z1x2c3"></i><i class="dcr-p0o9i8"></i>
 <div class="news-list"><a class="news-item" href="#1">one</a><a class="news-item" href="#2">two</a></div>
+<iframe id="frame" style="width:300px;height:100px;border:0" srcdoc="<button id=b style='width:100%;height:90px'>inside</button><script>document.getElementById('b').onclick=()=>parent.frameClicked=1</script>"></iframe>
+<div id="sp_message_container_1533645"><iframe id="sp_message_iframe_1533645" style="width:10px;height:10px;border:0"></iframe></div>
 <div style="height:2000px">tall</div>
 </body></html>`;
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
 const sel = (page, css) => page.evaluate(c => __jhPicker.selectorFor(document.querySelector(c)), css);
+// Tap by screen position, like a finger: the picker covers the page while
+// picking, so Playwright's element taps would refuse.
+const tapOn = async (page, css) => {
+  const [x, y] = await page.evaluate(c => {
+    const el = document.querySelector(c);
+    el.scrollIntoView({ block: 'center' });
+    const r = el.getBoundingClientRect();
+    return [r.left + Math.min(r.width / 2, 20), r.top + r.height / 2];
+  }, css);
+  await page.touchscreen.tap(x, y);
+};
 const matches = (page, s) => page.evaluate(s => [...document.querySelectorAll(s)].length, s);
 
 test('a stable id is used', async page => {
@@ -70,6 +83,10 @@ test('a family of ordinary names is kept', async page => {
   assert.ok(s.includes('news-item'), s);
 });
 
+test('a name with a changing number uses its fixed start', async page => {
+  assert.strictEqual(await sel(page, '[id^="sp_message_iframe_"]'), 'iframe[id^="sp_message_iframe_"]');
+});
+
 test('stable data labels are used', async page => {
   assert.strictEqual(await sel(page, '[data-component]'), 'div[data-component="most-popular"]');
 });
@@ -100,7 +117,7 @@ test('every element gets a selector matching only itself', async page => {
 
 test('bigger and smaller walk the nesting, bigger stops at body', async page => {
   await page.evaluate(() => __jhPicker.start());
-  await page.tap('.promo-box b');
+  await tapOn(page, '.promo-box b');
   assert.strictEqual(await page.evaluate(() => __jhPicker.current.tagName), 'B');
   await page.evaluate(() => __jhPicker.bigger());
   assert.strictEqual(await page.evaluate(() => __jhPicker.selector()), 'div.promo-box');
@@ -113,7 +130,7 @@ test('bigger and smaller walk the nesting, bigger stops at body', async page => 
 
 test('the label names the element and its size', async page => {
   await page.evaluate(() => __jhPicker.start());
-  await page.tap('.promo-box b');
+  await tapOn(page, '.promo-box b');
   const label = await page.evaluate(() => __jhPicker.bigger());
   assert.match(label, /^div\.promo-box · \d+×\d+$/);
 });
@@ -121,7 +138,7 @@ test('the label names the element and its size', async page => {
 test('a tap on a link does not open it while picking', async page => {
   await page.evaluate(() => { window.clicked = 0; document.getElementById('link').addEventListener('click', () => window.clicked++); });
   await page.evaluate(() => __jhPicker.start());
-  await page.tap('#link');
+  await tapOn(page, '#link');
   await page.waitForTimeout(300);
   assert.strictEqual(page.url(), 'about:blank');
   assert.strictEqual(await page.evaluate(() => window.clicked), 0);
@@ -130,7 +147,7 @@ test('a tap on a link does not open it while picking', async page => {
 
 test('the highlight follows the pick and goes away on stop', async page => {
   await page.evaluate(() => __jhPicker.start());
-  await page.tap('.promo-box b');
+  await tapOn(page, '.promo-box b');
   const box = await page.evaluate(() => {
     const o = document.getElementById('__jh_pick_box').getBoundingClientRect();
     const e = __jhPicker.current.getBoundingClientRect();
@@ -141,10 +158,22 @@ test('the highlight follows the pick and goes away on stop', async page => {
   assert.strictEqual(await page.evaluate(() => document.getElementById('__jh_pick_box')), null);
 });
 
+test('a tap over an embedded frame picks the whole frame', async page => {
+  await page.evaluate(() => { window.frameClicked = 0; document.getElementById('frame').scrollIntoView(); });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => __jhPicker.start());
+  const r = await page.evaluate(() => { const b = document.getElementById('frame').getBoundingClientRect(); return [b.left + 50, b.top + 40]; });
+  await page.touchscreen.tap(r[0], r[1]);
+  await page.waitForTimeout(300);
+  assert.strictEqual(await page.evaluate(() => __jhPicker.current && __jhPicker.current.id), 'frame');
+  assert.strictEqual(await page.evaluate(() => window.frameClicked), 0);
+  assert.strictEqual(await page.evaluate(() => __jhPicker.selector()), '#frame');
+});
+
 test('stop gives taps back to the page', async page => {
   await page.evaluate(() => { window.clicked = 0; document.getElementById('link').addEventListener('click', e => { e.preventDefault(); window.clicked++; }); });
   await page.evaluate(() => { __jhPicker.start(); __jhPicker.stop(); });
-  await page.tap('#link');
+  await tapOn(page, '#link');
   assert.strictEqual(await page.evaluate(() => window.clicked), 1);
   assert.strictEqual(await page.evaluate(() => __jhPicker.selector()), '');
 });
