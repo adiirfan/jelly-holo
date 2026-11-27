@@ -16,3 +16,4 @@
 # yt-dlp build inputs and outputs
 /ytdlp/cache/
 /app/src/main/assets/ytdlp/
+/torrent/target/

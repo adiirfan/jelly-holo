@@ -31,3 +31,6 @@
     public <init>(android.content.Context, android.util.AttributeSet);
     public <init>();
 }
+
+# The torrent engine calls the certificate checker from Rust, which shrinking can't see
+-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }

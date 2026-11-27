@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build Jelly Holo: block lists, Rust blocker, then the app.
+# Build Jelly Holo: block lists, Rust blocker, torrent engine, then the app.
 # Usage: scripts/build.sh [--install]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -14,6 +14,11 @@ if [ -d blocker ]; then
     (cd blocker && cargo run --quiet --release --bin compile_lists -- \
         ../app/src/main/assets/adblock.dat lists/easylist.txt lists/easyprivacy.txt)
     (cd blocker && cargo ndk -t arm64-v8a -P 26 -o ../app/src/main/jniLibs build --release --lib)
+fi
+
+if [ -d torrent ]; then
+    (cd torrent && cargo test --quiet --release)
+    (cd torrent && cargo ndk -t arm64-v8a -P 26 -o ../app/src/main/jniLibs build --release --lib)
 fi
 
 scripts/fetch-ytdlp.sh

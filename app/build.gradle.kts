@@ -72,6 +72,12 @@ kapt {
     }
 }
 
+// The certificate checker's Kotlin part must be the version the torrent engine was built with
+val rustlsVerifierVersion: String = rootProject.file("torrent/Cargo.lock").readLines().let { lines ->
+    val at = lines.indexOfFirst { it.trim() == "name = \"rustls-platform-verifier-android\"" }
+    lines.drop(at + 1).first { it.trim().startsWith("version = ") }.substringAfter('"').substringBefore('"')
+}
+
 dependencies {
     testImplementation("junit:junit:4.13.2")
     // Android's own org.json is only a stub in JVM tests
@@ -92,6 +98,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
+    implementation("org.rustls:rustls-platform-verifier:$rustlsVerifierVersion")
 }
 
 configure<GenerateBpPluginExtension> {
