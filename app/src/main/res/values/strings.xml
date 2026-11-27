@@ -273,6 +273,11 @@
     <string name="jump_go_anyway">Go anyway</string>
     <string name="pref_downloads_category">Downloads</string>
     <string name="pref_video_category">Video</string>
+    <string name="pref_about_category">About</string>
+    <string name="pref_version_title">Version</string>
+    <string name="pref_licenses_title">Open-source licences</string>
+    <string name="pref_licenses_summary">Jelly Holo is Apache 2.0, built on LineageOS Jelly. See every part it includes.</string>
+    <string name="licenses_title">Open-source licences</string>
     <string name="pref_video_auto_title">Open videos in the Jelly player</string>
     <string name="pref_video_auto_summary">Videos you start play full screen in the app\'s own player instead of the site\'s</string>
     <string name="vp_close">Close player</string>

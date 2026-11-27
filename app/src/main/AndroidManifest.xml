@@ -108,6 +108,11 @@
             android:theme="@style/Theme.Jelly.Settings" />
 
         <activity
+            android:name=".LicensesActivity"
+            android:label="@string/licenses_title"
+            android:theme="@style/Theme.Jelly.Settings" />
+
+        <activity
             android:name=".shortcut.BackgroundShortcutActivity"
             android:label="@string/background_shortcuts_title"
             android:theme="@style/Theme.Jelly.NoActionBar" />

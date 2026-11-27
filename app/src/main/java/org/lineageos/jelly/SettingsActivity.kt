@@ -6,6 +6,7 @@
 package org.lineageos.jelly
 
 import android.content.DialogInterface
+import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import org.lineageos.jelly.adblock.ElementRules
@@ -96,6 +97,9 @@ class SettingsActivity : AppCompatActivity() {
             findPreference<Preference>("key_adblock_update")?.summary = adBlockUpdateSummary()
             findPreference<Preference>("key_hidden_elements")?.let { it.summary = hiddenSummary() }
             findPreference<Preference>("key_ytdlp")?.let { showYtDlpVersion(it) }
+            findPreference<Preference>("key_version")?.summary = runCatching {
+                requireContext().packageManager.getPackageInfo(requireContext().packageName, 0).versionName
+            }.getOrNull()
             findPreference<SwitchPreference>("key_web_debugging")?.onPreferenceChangeListener =
                 Preference.OnPreferenceChangeListener { _, newValue ->
                     WebView.setWebContentsDebuggingEnabled(newValue as Boolean)
@@ -126,6 +130,11 @@ class SettingsActivity : AppCompatActivity() {
 
                 "key_adblock_update" -> {
                     updateBlockLists(preference)
+                    true
+                }
+
+                "key_licenses" -> {
+                    startActivity(Intent(requireContext(), LicensesActivity::class.java))
                     true
                 }
 

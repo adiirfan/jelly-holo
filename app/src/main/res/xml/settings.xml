@@ -166,4 +166,21 @@
             app:key="key_cookie_clear"
             app:title="@string/pref_cookie_clear" />
     </PreferenceCategory>
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
+        app:title="@string/pref_about_category">
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="key_version"
+            app:selectable="false"
+            app:title="@string/pref_version_title" />
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="key_licenses"
+            app:summary="@string/pref_licenses_summary"
+            app:title="@string/pref_licenses_title" />
+    </PreferenceCategory>
 </PreferenceScreen>

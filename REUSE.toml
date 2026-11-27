@@ -17,3 +17,17 @@ path = "gradle/wrapper/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2007-2023 Gradle, Inc."
 SPDX-License-Identifier = "Apache-2.0"
+
+# Jelly Holo's own Rust code: the ad blocker and the torrent engine
+[[annotations]]
+path = ["blocker/**", "torrent/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Jelly Holo contributors"
+SPDX-License-Identifier = "MIT"
+
+# Third-party licence texts, as published by their projects
+[[annotations]]
+path = "licenses/**"
+precedence = "override"
+SPDX-FileCopyrightText = "Their respective authors"
+SPDX-License-Identifier = "LicenseRef-third-party-notices"
