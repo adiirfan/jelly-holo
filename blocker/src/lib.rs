@@ -89,6 +89,59 @@ fn warm_up(engine: &Engine) {
     }
 }
 
+/// Elements the user chose to hide ("site##selector" lines, the uBlock /
+/// EasyList format), turned into a stylesheet per page.
+pub struct ElementRules {
+    engine: RwLock<Option<Engine>>,
+}
+
+impl ElementRules {
+    pub const fn new() -> ElementRules {
+        ElementRules { engine: RwLock::new(None) }
+    }
+
+    /// Replace all rules with `text`, one rule per line.
+    pub fn set(&self, text: &str) {
+        let engine = if text.trim().is_empty() {
+            None
+        } else {
+            let mut set = FilterSet::new(false);
+            set.add_filter_list(text.to_string(), ParseOptions::default());
+            Some(Engine::new_with_filter_set(set))
+        };
+        *self.engine.write().unwrap_or_else(|e| e.into_inner()) = engine;
+    }
+
+    /// The CSS that hides this page's elements: one rule per selector, so a
+    /// selector the page's engine can't read only loses itself. Selectors
+    /// that could break out of the stylesheet are dropped.
+    pub fn hide_css(&self, url: &str) -> String {
+        let Ok(guard) = self.engine.read() else { return String::new() };
+        let Some(engine) = guard.as_ref() else { return String::new() };
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return String::new();
+        }
+        let mut css = String::new();
+        for sel in engine.url_cosmetic_resources(url).hide_selectors {
+            if sel.contains(['{', '}', '<']) {
+                continue;
+            }
+            css.push_str(&sel);
+            css.push_str("{display:none!important}\n");
+        }
+        css
+    }
+}
+
+impl Default for ElementRules {
+    fn default() -> Self {
+        ElementRules::new()
+    }
+}
+
+/// The app's single set of element rules.
+pub static ELEMENT_RULES: ElementRules = ElementRules::new();
+
 /// The app's single blocker.
 pub static BLOCKER: Blocker = Blocker::new();
 

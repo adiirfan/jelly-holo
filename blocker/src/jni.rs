@@ -5,10 +5,10 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use jni::objects::{JByteArray, JClass, JObjectArray, JString};
-use jni::sys::{jboolean, jbyteArray, JNI_FALSE, JNI_TRUE};
+use jni::sys::{jboolean, jbyteArray, jstring, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
 
-use crate::{compile, BLOCKER};
+use crate::{compile, BLOCKER, ELEMENT_RULES};
 
 fn flag(b: bool) -> jboolean {
     if b { JNI_TRUE } else { JNI_FALSE }
@@ -70,4 +70,30 @@ pub extern "system" fn Java_org_lineageos_jelly_adblock_AdBlock_nativeShouldBloc
         BLOCKER.should_block(&url, &page, &accept)
     }));
     flag(block.unwrap_or(false))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_lineageos_jelly_adblock_AdBlock_nativeSetElementRules(
+    mut env: JNIEnv,
+    _class: JClass,
+    rules: JString,
+) {
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+        if let Some(text) = string(&mut env, &rules) {
+            ELEMENT_RULES.set(&text);
+        }
+    }));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_lineageos_jelly_adblock_AdBlock_nativeHideCss(
+    mut env: JNIEnv,
+    _class: JClass,
+    url: JString,
+) -> jstring {
+    let css = catch_unwind(AssertUnwindSafe(|| {
+        string(&mut env, &url).map(|u| ELEMENT_RULES.hide_css(&u)).unwrap_or_default()
+    }))
+    .unwrap_or_default();
+    env.new_string(css).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
 }
