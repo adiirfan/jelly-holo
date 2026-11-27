@@ -94,6 +94,9 @@ fun options(
         list = rows(pictures.filter { isWebm(it) && mimeOf(it.vcodec)?.let(playable) == true }, webmSound, Output.WEBM)
     }
     if (list.isEmpty()) {
+        list = rows(pictures.filter { isWebm(it) && it.vcodec == "" }, webmSound, Output.WEBM)
+    }
+    if (list.isEmpty()) {
         // The biggest size the encoder takes, so nothing needs shrinking
         val convertible = pictures.filter { f ->
             mimeOf(f.vcodec) != null && (f.width == null || f.height == null || encodable(f.width, f.height))

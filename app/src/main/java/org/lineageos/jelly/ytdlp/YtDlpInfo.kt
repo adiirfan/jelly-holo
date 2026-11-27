@@ -91,7 +91,13 @@ class YtDlpInfo(
 ) {
     companion object {
         fun parse(json: String): YtDlpInfo {
-            val o = JSONObject(json)
+            var o = JSONObject(json)
+            // A page answered as a list: its first video with formats
+            o.optJSONArray("entries")?.let { entries ->
+                (0 until entries.length()).mapNotNull { entries.optJSONObject(it) }
+                    .firstOrNull { it.has("formats") || it.has("url") }
+                    ?.let { o = it }
+            }
             val list = o.optJSONArray("formats")
             val formats = if (list == null) {
                 // A page with a single format describes it at the top level

@@ -133,6 +133,32 @@ class FormatChoiceTest {
     }
 
     @Test
+    fun parse_takes_the_first_video_of_a_list_answer() {
+        val info = YtDlpInfo.parse(
+            """{"_type":"playlist","title":"page","webpage_url":"https://example.invalid/p","entries":[
+               {"title":"AV1 test (1)","webpage_url":"https://example.invalid/p","formats":[
+               {"format_id":"hls-3193","url":"https://example.invalid/m.m3u8","protocol":"m3u8_native","ext":"mp4",
+                "vcodec":"av01.0.08M.08","acodec":"mp4a.40.2","video_ext":"mp4","audio_ext":"none","width":1280,"height":720}]}]}"""
+        )
+        assertEquals("AV1 test (1)", info.title)
+        val o = options(info, playable = xperia).single()
+        assertEquals(Output.CONVERT, o.output)
+        assertNull(o.audio) // the sound is in the same file
+    }
+
+    @Test
+    fun unknown_codec_webm_is_saved_as_webm() {
+        val info = YtDlpInfo.parse(
+            """{"title":"WebM test","webpage_url":"https://example.invalid/p","formats":[
+               {"format_id":"0","url":"https://example.invalid/w.webm","protocol":"http","ext":"webm",
+                "vcodec":null,"acodec":null,"video_ext":"webm","audio_ext":"none"}]}"""
+        )
+        val o = options(info, playable = xperia).single()
+        assertEquals(Output.WEBM, o.output)
+        assertEquals("0", o.video!!.id)
+    }
+
+    @Test
     fun unknown_size_without_a_bitrate_stays_unknown() {
         val info = YtDlpInfo.parse(
             """{"title":"t","duration":10,"webpage_url":"https://example.invalid/","is_live":true,
