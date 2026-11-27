@@ -117,20 +117,24 @@ object Transcode {
                 30.0
             }
             val duration = if (inFormat.containsKey(MediaFormat.KEY_DURATION)) inFormat.getLong(MediaFormat.KEY_DURATION) else 0L
+            val flexible = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
             val outFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
-                setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+                setInteger(MediaFormat.KEY_COLOR_FORMAT, flexible)
                 setInteger(MediaFormat.KEY_BIT_RATE, bitrateFor(width, height, fps))
                 setInteger(MediaFormat.KEY_FRAME_RATE, fps.toInt().coerceAtLeast(1))
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
             }
-            log("converting ${inFormat.getString(MediaFormat.KEY_MIME)} ${width}x$height at $fps fps")
+            // Frames go from the decoder to the hardware encoder through memory:
+            // linking them by a surface made the phone's encoder fail on frames
+            // from a software decoder.
             encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
             encoder.configure(outFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            val surface = encoder.createInputSurface()
             encoder.start()
+            inFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, flexible)
             decoder = MediaCodec.createDecoderByType(inFormat.getString(MediaFormat.KEY_MIME)!!)
-            decoder.configure(inFormat, surface, null, 0)
+            decoder.configure(inFormat, null, null, 0)
             decoder.start()
+            log("converting ${inFormat.getString(MediaFormat.KEY_MIME)} ${width}x$height at $fps fps with ${decoder.name} -> ${encoder.name}")
 
             muxer = MediaMuxer(out, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             if (inFormat.containsKey(MediaFormat.KEY_ROTATION)) {
@@ -167,14 +171,24 @@ object Transcode {
             }
 
             val info = MediaCodec.BufferInfo()
+            val encInfo = MediaCodec.BufferInfo()
             var inputDone = false
             var decodeDone = false
             var encodeDone = false
             var lastShown = -1
+            // A decoded frame waiting for room in the encoder
+            var held = -1
+            var heldTime = 0L
+            var heldEos = false
+            var copyNs = 0L
+            var frames = 0
+            val t0 = System.nanoTime()
             while (!encodeDone) {
                 if (cancelled()) throw Cancelled()
+                // Nothing waits unless a whole round moved nothing
+                var moved = false
                 if (!inputDone) {
-                    val i = decoder.dequeueInputBuffer(TIMEOUT_US)
+                    val i = decoder.dequeueInputBuffer(0)
                     if (i >= 0) {
                         val buf = decoder.getInputBuffer(i)!!
                         val n = ex.readSampleData(buf, 0)
@@ -185,23 +199,58 @@ object Transcode {
                             decoder.queueInputBuffer(i, 0, n, ex.sampleTime, 0)
                             ex.advance()
                         }
+                        moved = true
                     }
                 }
-                if (!decodeDone) {
-                    val o = decoder.dequeueOutputBuffer(info, TIMEOUT_US)
+                if (!decodeDone && held < 0) {
+                    val o = decoder.dequeueOutputBuffer(info, 0)
                     if (o >= 0) {
-                        val eos = info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
-                        // Hand the frame to the encoder with its own time
-                        decoder.releaseOutputBuffer(o, info.size > 0 || !eos)
-                        if (eos) {
-                            encoder.signalEndOfInputStream()
+                        moved = true
+                        held = o
+                        heldTime = info.presentationTimeUs
+                        heldEos = info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+                        if (info.size == 0 && !heldEos) {
+                            decoder.releaseOutputBuffer(o, false)
+                            held = -1
+                        }
+                    }
+                }
+                if (held >= 0) {
+                    val e = encoder.dequeueInputBuffer(0)
+                    if (e >= 0) {
+                        moved = true
+                        val image = if (info.size > 0 || !heldEos) decoder.getOutputImage(held) else null
+                        if (image != null) {
+                            val target = encoder.getInputImage(e)!!
+                            val c = System.nanoTime()
+                            copyFrame(image, target, width, height)
+                            copyNs += System.nanoTime() - c
+                            frames++
+                            image.close()
+                            encoder.queueInputBuffer(e, 0, width * height * 3 / 2, heldTime, 0)
+                        } else if (heldEos) {
+                            encoder.queueInputBuffer(e, 0, 0, heldTime, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                        } else {
+                            encoder.queueInputBuffer(e, 0, 0, heldTime, 0)
+                        }
+                        decoder.releaseOutputBuffer(held, false)
+                        held = -1
+                        if (heldEos) {
+                            if (image != null) {
+                                // The last frame came with the end mark: end the encoder too
+                                var k: Int
+                                do { k = encoder.dequeueInputBuffer(TIMEOUT_US) } while (k < 0 && !cancelled())
+                                if (k < 0) throw Cancelled()
+                                encoder.queueInputBuffer(k, 0, 0, heldTime, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            }
                             decodeDone = true
                         }
                     }
                 }
                 while (true) {
-                    val e = encoder.dequeueOutputBuffer(info, if (decodeDone) TIMEOUT_US else 0)
+                    val e = encoder.dequeueOutputBuffer(encInfo, if (decodeDone || !moved) 2_000 else 0)
                     if (e == MediaCodec.INFO_TRY_AGAIN_LATER) break
+                    moved = true
                     if (e == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                         videoTrack = muxer.addTrack(encoder.outputFormat)
                         sound?.let { soundTrack = muxer.addTrack(it.second) }
@@ -211,12 +260,12 @@ object Transcode {
                     }
                     if (e < 0) continue
                     val data = encoder.getOutputBuffer(e)!!
-                    if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) info.size = 0
-                    if (info.size > 0 && muxing) {
-                        copySound(info.presentationTimeUs)
-                        muxer.writeSampleData(videoTrack, data, info)
+                    if (encInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) encInfo.size = 0
+                    if (encInfo.size > 0 && muxing) {
+                        copySound(encInfo.presentationTimeUs)
+                        muxer.writeSampleData(videoTrack, data, encInfo)
                         if (duration > 0) {
-                            val pct = (info.presentationTimeUs * 100 / duration).toInt().coerceIn(0, 100)
+                            val pct = (encInfo.presentationTimeUs * 100 / duration).toInt().coerceIn(0, 100)
                             if (pct != lastShown) {
                                 lastShown = pct
                                 progress(pct)
@@ -224,7 +273,7 @@ object Transcode {
                         }
                     }
                     encoder.releaseOutputBuffer(e, false)
-                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                    if (encInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                         encodeDone = true
                         break
                     }
@@ -234,6 +283,7 @@ object Transcode {
             copySound(Long.MAX_VALUE)
             muxer.stop()
             muxing = false
+            log("converted $frames frames in ${(System.nanoTime() - t0) / 1_000_000} ms, copying took ${copyNs / 1_000_000} ms")
             return true
         } finally {
             runCatching { decoder?.stop() }
@@ -244,6 +294,46 @@ object Transcode {
             runCatching { muxer?.release() }
             ex.release()
             sound?.first?.release()
+        }
+    }
+
+    /**
+     * Copies one YUV 4:2:0 frame between two codec images, whatever their
+     * layouts, a whole row at a time (pixel by pixel is far too slow).
+     */
+    private fun copyFrame(src: android.media.Image, dst: android.media.Image, width: Int, height: Int) {
+        val crop = src.cropRect
+        var srcRow = ByteArray(0)
+        var dstRow = ByteArray(0)
+        for (p in 0 until 3) {
+            val w = if (p == 0) width else (width + 1) / 2
+            val h = if (p == 0) height else (height + 1) / 2
+            val sx = if (p == 0) crop.left else crop.left / 2
+            val sy = if (p == 0) crop.top else crop.top / 2
+            val s = src.planes[p]
+            val d = dst.planes[p]
+            val sb = s.buffer
+            val db = d.buffer
+            val sSpan = (w - 1) * s.pixelStride + 1
+            val dSpan = (w - 1) * d.pixelStride + 1
+            if (srcRow.size < sSpan) srcRow = ByteArray(sSpan)
+            if (dstRow.size < dSpan) dstRow = ByteArray(dSpan)
+            for (y in 0 until h) {
+                sb.position((sy + y) * s.rowStride + sx * s.pixelStride)
+                sb.get(srcRow, 0, sSpan)
+                val at = y * d.rowStride
+                if (s.pixelStride == 1 && d.pixelStride == 1) {
+                    db.position(at)
+                    db.put(srcRow, 0, w)
+                    continue
+                }
+                // Interleaved colour (the other channel sits in between): keep its bytes
+                db.position(at)
+                db.get(dstRow, 0, dSpan)
+                for (x in 0 until w) dstRow[x * d.pixelStride] = srcRow[x * s.pixelStride]
+                db.position(at)
+                db.put(dstRow, 0, dSpan)
+            }
         }
     }
 
