@@ -117,6 +117,23 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- Magnet links from other apps start a torrent without opening a window -->
+        <activity
+            android:name=".torrent.TorrentLinkActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="magnet" />
+            </intent-filter>
+        </activity>
+
         <!-- Its own process, so the whole process can be tied to the VPN -->
         <service
             android:name=".torrent.TorrentService"

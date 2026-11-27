@@ -24,6 +24,8 @@ abstract class WebViewExtActivity : AppCompatActivity() {
     )
 
     abstract fun showSheetMenu(url: String, shouldAllowDownload: Boolean)
+    /** A magnet link was tapped: start the torrent. */
+    abstract fun onTorrentLink(url: String)
     abstract fun onFaviconLoaded(favicon: Bitmap?)
     abstract fun onShowCustomView(view: View?, callback: CustomViewCallback)
     abstract fun onHideCustomView()

@@ -135,6 +135,12 @@ import org.lineageos.jelly.database.DownloadDatabase
 import org.lineageos.jelly.downloads.DownloadRecorder
 import org.lineageos.jelly.downloads.DownloadsActivity
 import org.lineageos.jelly.torrent.TorrentService
+import org.lineageos.jelly.torrent.isTorrentDownload
+import org.lineageos.jelly.torrent.magnetName
+import org.lineageos.jelly.ytdlp.cookieHeaderFor
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import android.provider.Settings
 
 class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
@@ -979,6 +985,12 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         contentLength: Long
     ) {
         val fileName = UrlUtils.guessFileName(url, contentDisposition, mimeType)
+        if (url != null && (url.startsWith("https://") || url.startsWith("http://")) &&
+            isTorrentDownload(url, mimeType, contentDisposition)
+        ) {
+            onTorrentFile(url, userAgent, fileName)
+            return
+        }
         AlertDialog.Builder(this)
             .setTitle(R.string.download_title)
             .setMessage(getString(R.string.download_message, fileName))
@@ -988,6 +1000,74 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             .setNegativeButton(
                 getString(R.string.dismiss)
             ) { dialog: DialogInterface, _: Int -> dialog.dismiss() }
+            .show()
+    }
+
+    override fun onTorrentLink(url: String) {
+        withTorrentStorage {
+            askForNotifications()
+            val name = magnetName(url) ?: getString(R.string.torrent_unnamed)
+            lifecycleScope.launch {
+                val id = withContext(Dispatchers.IO) { TorrentService.addMagnet(applicationContext, url, name) }
+                torrentAdded(name, id)
+            }
+        }
+    }
+
+    /** A .torrent file: fetched here, with the file's own cookies (none in a private tab), and handed over. */
+    private fun onTorrentFile(url: String, userAgent: String?, fileName: String) {
+        withTorrentStorage {
+            askForNotifications()
+            val page = webView.url
+            val private = incognito
+            val name = fileName.removeSuffix(".torrent").ifEmpty { getString(R.string.torrent_unnamed) }
+            lifecycleScope.launch {
+                val id = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = fetchTorrentFile(url, userAgent, page, private)
+                        TorrentService.addBytes(applicationContext, bytes, name)
+                    }.getOrNull()
+                }
+                if (id == null) {
+                    Snackbar.make(constraintLayout, R.string.torrent_fetch_failed, Snackbar.LENGTH_LONG).show()
+                } else {
+                    torrentAdded(name, id)
+                }
+            }
+        }
+    }
+
+    private fun fetchTorrentFile(url: String, userAgent: String?, referer: String?, private: Boolean): ByteArray {
+        val c = URL(url).openConnection() as HttpURLConnection
+        try {
+            c.connectTimeout = 15_000
+            c.readTimeout = 15_000
+            userAgent?.let { c.setRequestProperty("User-Agent", it) }
+            referer?.let { c.setRequestProperty("Referer", it) }
+            cookieHeaderFor(url, private, CookieManager.getInstance()::getCookie)?.let { c.setRequestProperty("Cookie", it) }
+            if (c.responseCode !in 200..299) throw IOException("HTTP ${c.responseCode}")
+            val out = ByteArrayOutputStream()
+            c.inputStream.use { input ->
+                val buf = ByteArray(16 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    // Even huge torrents' files are a few MB; anything bigger isn't one
+                    if (out.size() > MAX_TORRENT_FILE) throw IOException("too big for a .torrent file")
+                }
+            }
+            return out.toByteArray()
+        } finally {
+            c.disconnect()
+        }
+    }
+
+    private fun torrentAdded(name: String, id: Long) {
+        Snackbar.make(constraintLayout, getString(R.string.torrent_added, name), Snackbar.LENGTH_LONG)
+            .setAction(R.string.torrent_view) {
+                startActivity(Intent(this, DownloadsActivity::class.java).putExtra(DownloadsActivity.EXTRA_SHOW_ID, id))
+            }
             .show()
     }
 
@@ -1537,6 +1617,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     companion object {
+        private const val MAX_TORRENT_FILE = 20 * 1024 * 1024
         private val VIDEO_EXTENSIONS = setOf("mp4", "webm", "mkv", "mov", "m4v", "3gp", "avi")
 
         private val TAG = MainActivity::class.java.simpleName

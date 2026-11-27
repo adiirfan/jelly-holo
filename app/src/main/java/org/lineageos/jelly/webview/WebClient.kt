@@ -47,6 +47,7 @@ import org.lineageos.jelly.utils.AssetLoader
 import org.lineageos.jelly.utils.IntentUtils
 import org.lineageos.jelly.utils.UrlUtils
 import java.net.URISyntaxException
+import org.lineageos.jelly.torrent.isMagnet
 
 internal class WebClient(
     private val context: Context,
@@ -164,6 +165,13 @@ internal class WebClient(
     }
 
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+        if (isMagnet(request.url.toString())) {
+            // Started only by a tap (or a link that forwards to the magnet), never by a page on its own
+            if (request.hasGesture() || request.isRedirect) {
+                (context as? WebViewExtActivity)?.onTorrentLink(request.url.toString())
+            }
+            return true
+        }
         if (request.isForMainFrame) {
             val webViewExt = view as WebViewExt
             val url = request.url.toString()

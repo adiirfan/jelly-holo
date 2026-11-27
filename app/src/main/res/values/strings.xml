@@ -302,6 +302,10 @@
     <string name="torrent_time_limit">Android paused torrents for today</string>
     <string name="torrent_needs_storage">Torrents need permission to save to Downloads</string>
     <string name="torrent_allow">Allow</string>
+    <string name="torrent_added">Torrent added: %s</string>
+    <string name="torrent_view">View</string>
+    <string name="torrent_unnamed">Torrent</string>
+    <string name="torrent_fetch_failed">Couldn\'t get the torrent file</string>
     <string name="download_starting">Starting…</string>
     <string name="download_progress">%1$s of %2$s · %3$s/s</string>
     <!-- Downloads page -->
