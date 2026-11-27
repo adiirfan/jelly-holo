@@ -36,6 +36,9 @@ import android.print.PrintManager
 import android.text.TextUtils
 import android.util.Log
 import android.view.View
+import org.lineageos.jelly.download.DownloadService
+import android.content.pm.PackageManager
+import android.Manifest
 import android.os.SystemClock
 import android.widget.TextView
 import org.lineageos.jelly.utils.AssetLoader
@@ -722,6 +725,30 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     private fun fetchFile(url: String?, userAgent: String?, fileName: String) {
+        // Fast downloads: several parts at once, straight into Downloads
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && sharedPreferencesExt.fastDownloads &&
+            url != null && (url.startsWith("https://") || url.startsWith("http://"))
+        ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
+            }
+            DownloadService.start(
+                this, url, fileName,
+                MimeTypeMap.getSingleton().getMimeTypeFromExtension(
+                    MimeTypeMap.getFileExtensionFromUrl(url)
+                ),
+                userAgent,
+                CookieManager.getInstance().getCookie(url)?.takeUnless { it.isEmpty() },
+                webView.url,
+            )
+            Snackbar.make(
+                constraintLayout, getString(R.string.download_started, fileName), Snackbar.LENGTH_SHORT
+            ).show()
+            return
+        }
         val request = try {
             DownloadManager.Request(Uri.parse(url))
         } catch (e: IllegalArgumentException) {

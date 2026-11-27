@@ -88,6 +88,18 @@
 
     <PreferenceCategory
         app:iconSpaceReserved="false"
+        app:title="@string/pref_downloads_category">
+
+        <SwitchPreference
+            app:defaultValue="true"
+            app:iconSpaceReserved="false"
+            app:key="key_fast_downloads"
+            app:summary="@string/pref_fast_downloads_summary"
+            app:title="@string/pref_fast_downloads_title" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
         app:title="@string/pref_privacy_security">
 
         <SwitchPreference

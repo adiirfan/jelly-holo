@@ -88,6 +88,9 @@ class SharedPreferencesExt(context: Context) {
             FULLSCREEN_SHORTCUTS_ENABLED_KEY, FULLSCREEN_SHORTCUTS_ENABLED_DEFAULT
         )
 
+    val fastDownloads: Boolean
+        get() = sharedPreferences.getBoolean(FAST_DOWNLOADS_KEY, true)
+
     val adBlockEnabled: Boolean
         get() = sharedPreferences.getBoolean(ADBLOCK_ENABLED_KEY, ADBLOCK_ENABLED_DEFAULT)
 
@@ -109,6 +112,7 @@ class SharedPreferencesExt(context: Context) {
     companion object {
         const val LOOK_KEY = "key_theme"
         private const val DARK_PAGES_KEY = "key_dark_pages"
+        private const val FAST_DOWNLOADS_KEY = "key_fast_downloads"
         const val LOOK_SYSTEM = "system"
         const val LOOK_LIGHT = "light"
         const val LOOK_BLACK = "black"
