@@ -59,6 +59,8 @@ object Transcode {
         progress: (Int) -> Unit,
         cancelled: () -> Boolean,
         log: (String) -> Unit,
+        /** The video's length when the file doesn't say (joined stream pieces don't), microseconds. */
+        lengthUs: Long = 0,
     ): Boolean {
         var tempSound: File? = null
         try {
@@ -71,7 +73,7 @@ object Transcode {
                 if (!soundToAac(soundSource, tempSound, cancelled, log)) return false
                 sound = openTrack(tempSound, "audio/")
             }
-            return pictures(video, sound, out, progress, cancelled, log)
+            return pictures(video, sound, out, progress, cancelled, log, lengthUs)
         } catch (e: Cancelled) {
             return false
         } finally {
@@ -100,6 +102,7 @@ object Transcode {
         progress: (Int) -> Unit,
         cancelled: () -> Boolean,
         log: (String) -> Unit,
+        lengthUs: Long,
     ): Boolean {
         val (ex, inFormat) = openTrack(file, "video/") ?: throw IOException("no picture found")
         var decoder: MediaCodec? = null
@@ -116,7 +119,8 @@ object Transcode {
             } else {
                 30.0
             }
-            val duration = if (inFormat.containsKey(MediaFormat.KEY_DURATION)) inFormat.getLong(MediaFormat.KEY_DURATION) else 0L
+            val duration = inFormat.takeIf { it.containsKey(MediaFormat.KEY_DURATION) }
+                ?.getLong(MediaFormat.KEY_DURATION)?.takeIf { it > 0 } ?: lengthUs
             val flexible = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
             val outFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, flexible)

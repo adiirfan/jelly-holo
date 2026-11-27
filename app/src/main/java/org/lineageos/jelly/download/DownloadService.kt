@@ -313,8 +313,13 @@ class DownloadService : Service() {
             val video = o.video?.let { File(dir, "video") }
             val audio = o.audio?.let { File(dir, "audio") }
             var before = 0L
+            // The video's length, for conversion progress: yt-dlp's, or a stream playlist's
+            var length = y.duration ?: 0.0
             for ((format, file) in listOfNotNull(o.video?.let { it to video!! }, o.audio?.let { it to audio!! })) {
-                if (!fetchFormat(id, job, y, format, file, cookieHeader, cookiesFile, before, o.size ?: -1, started, log)) return
+                val ok = fetchFormat(id, job, y, format, file, cookieHeader, cookiesFile, before, o.size ?: -1, started, log) {
+                    if (length <= 0) length = it
+                }
+                if (!ok) return
                 before += file.length()
             }
             job.note = piecesProgress(id, job.name, -1, -1)
@@ -360,6 +365,7 @@ class DownloadService : Service() {
                             },
                             cancelled = { job.cancelled },
                             log = log,
+                            lengthUs = (length * 1_000_000).toLong(),
                         )
                     }
                     if (!ok) {
@@ -433,6 +439,7 @@ class DownloadService : Service() {
         total: Long,
         started: Long,
         log: (String) -> Unit,
+        onLength: (Double) -> Unit,
     ): Boolean {
         var lastShown = 0L
         fun show(done: Long) {
@@ -466,6 +473,7 @@ class DownloadService : Service() {
                     log = log,
                 )
                 val plan = hls.choose(listOf(f.url), y.duration ?: -1.0)
+                onLength(plan.duration)
                 val extra = plan.audio?.let { File(file.parentFile, file.name + "-sound") }
                 var shown = 0L
                 return hls.download(
