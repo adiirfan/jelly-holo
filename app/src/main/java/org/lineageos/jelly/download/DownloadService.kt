@@ -676,13 +676,21 @@ class DownloadService : Service() {
     }
 
     private fun createChannel() {
+        // Quiet notices lose their icon at the top of the screen, so a running
+        // download was invisible unless the shade was pulled down. This level
+        // keeps the icon, but sound and vibration are off and it never pops up.
+        nm.deleteNotificationChannel(OLD_CHANNEL)
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL, getString(R.string.download_channel), NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(CHANNEL, getString(R.string.download_channel), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                setSound(null, null)
+                enableVibration(false)
+            },
         )
     }
 
     companion object {
-        private const val CHANNEL = "downloads"
+        private const val CHANNEL = "downloads_visible"
+        private const val OLD_CHANNEL = "downloads"
         private const val ACTION_START = "start"
         private const val ACTION_CANCEL = "cancel"
         private const val ACTION_START_STREAM = "start_stream"
