@@ -95,7 +95,12 @@ fun applyStat(row: DownloadItem, s: TorrentStat, now: Long): DownloadItem {
         downBps = if (moving) s.downBps else 0,
         upBps = if (moving) s.upBps else 0,
         peers = if (moving) s.peers else 0,
-        error = if (state == DownloadState.FAILED) s.error else null,
+        error = when (state) {
+            DownloadState.FAILED -> s.error
+            // Why it was paused (e.g. storage full) stays until it runs again
+            DownloadState.PAUSED -> row.error
+            else -> null
+        },
         files = if (s.files.isEmpty()) row.files else encodeFiles(s.files),
         updated = now,
     )
@@ -113,3 +118,8 @@ fun waitingRow(row: DownloadItem, lock: Lock, now: Long): DownloadItem {
     }
     return row.copy(state = state, downBps = 0, upBps = 0, peers = 0, updated = now)
 }
+
+/** Under this much free space, downloading torrents pause instead of failing quietly. */
+const val LOW_SPACE_BYTES = 100L * 1024 * 1024
+
+fun lowOnSpace(freeBytes: Long): Boolean = freeBytes < LOW_SPACE_BYTES

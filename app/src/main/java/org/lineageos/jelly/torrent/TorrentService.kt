@@ -23,6 +23,7 @@ import android.net.NetworkRequest
 import android.os.Build
 import android.os.Environment
 import android.os.IBinder
+import android.os.StatFs
 import android.text.format.Formatter
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -124,6 +125,8 @@ class TorrentService : Service() {
         val action = intent?.action
         val rowId = intent?.getLongExtra(EXTRA_ID, -1L) ?: -1L
         worker.execute {
+            // The engine may not be running yet (the service had ended): start it before acting
+            reevaluate()
             when (action) {
                 ACTION_ADD -> addPending()
                 ACTION_PAUSE -> engineAction(rowId) { NativeTorrent.pause(it) }
@@ -296,15 +299,18 @@ class TorrentService : Service() {
     private fun engineAction(rowId: Long, f: (Int) -> Boolean) {
         if (!engineUp) return
         val hash = record { byId(rowId) }?.infoHash ?: return
-        stats.firstOrNull { it.infoHash == hash }?.let { f(it.id) }
+        engineIdOf(hash)?.let { f(it) }
     }
+
+    /** Asks the engine itself: the last second's list may be empty right after it starts. */
+    private fun engineIdOf(hash: String): Int? = parseStats(NativeTorrent.stats()).firstOrNull { it.infoHash == hash }?.id
 
     private fun remove(rowId: Long, deleteFiles: Boolean) {
         val row = record { byId(rowId) } ?: return
         val hash = row.infoHash
         when {
             hash == null -> row.source?.takeUnless { it.startsWith("magnet:", true) }?.let { File(it).delete() }
-            engineUp -> stats.firstOrNull { it.infoHash == hash }?.let { NativeTorrent.remove(it.id, deleteFiles) }
+            engineUp -> engineIdOf(hash)?.let { NativeTorrent.remove(it, deleteFiles) }
             // Can't reach the engine now (waiting for the VPN): do it when it starts
             else -> prefs.pendingRemovals = prefs.pendingRemovals + "$hash|${if (deleteFiles) 1 else 0}"
         }
@@ -331,6 +337,8 @@ class TorrentService : Service() {
         val t = now()
         if (engineUp) {
             stats = parseStats(NativeTorrent.stats())
+            // The engine treats a full disk as a bad peer and retries forever: stop and say so instead
+            val full = lowOnSpace(runCatching { StatFs(saveFolder().path).availableBytes }.getOrDefault(Long.MAX_VALUE))
             for (s in stats) {
                 val row = record { byInfoHash(s.infoHash) }
                     ?: record { // The engine has it but the list doesn't (e.g. app data cleared)
@@ -338,6 +346,13 @@ class TorrentService : Service() {
                         r.copy(id = insert(r))
                     }
                 var next = applyStat(row, s, t)
+                if (full && s.state == "live" && !s.finished) {
+                    NativeTorrent.pause(s.id)
+                    next = next.copy(
+                        state = DownloadState.PAUSED, downBps = 0, upBps = 0, peers = 0,
+                        error = getString(R.string.torrent_storage_full),
+                    )
+                }
                 if (next.state == DownloadState.SHARING &&
                     shouldStopSharing(s.uploaded, s.total, prefs.ratio, prefs.keepSharing)
                 ) {

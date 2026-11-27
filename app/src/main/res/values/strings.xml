@@ -307,6 +307,7 @@
     <string name="torrent_unnamed">Torrent</string>
     <string name="torrent_fetch_failed">Couldn\'t get the torrent file</string>
     <string name="torrent_settings_title">Torrent settings</string>
+    <string name="torrent_storage_full">Phone storage is full</string>
     <string name="torrent_pause">Pause</string>
     <string name="torrent_resume">Resume</string>
     <string name="torrent_stop_sharing">Stop sharing</string>

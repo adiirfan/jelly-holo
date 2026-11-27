@@ -97,4 +97,17 @@ class TorrentRowsTest {
         assertEquals(stat().files, parseFiles(r.files))
         assertEquals(emptyList<TorrentFile>(), parseFiles(null))
     }
+
+    @Test
+    fun a_paused_row_keeps_its_reason_until_it_runs_again() {
+        val full = row.copy(state = DownloadState.PAUSED, error = "Phone storage is full")
+        assertEquals("Phone storage is full", applyStat(full, stat(state = "paused"), 5).error)
+        assertEquals(null, applyStat(full, stat(), 5).error)
+    }
+
+    @Test
+    fun downloads_pause_when_the_phone_has_under_100_mb_free() {
+        assertEquals(true, lowOnSpace(99L * 1024 * 1024))
+        assertEquals(false, lowOnSpace(200L * 1024 * 1024))
+    }
 }
