@@ -1,0 +1,6 @@
+{"title": "WebM only", "duration": 20.0, "webpage_url": "https://example.invalid/page", "is_live": false,
+ "formats": [
+  {"format_id": "v720", "url": "https://example.invalid/v720", "protocol": "https", "ext": "webm", "vcodec": "vp9", "acodec": "none", "video_ext": "webm", "audio_ext": "none", "width": 1280, "height": 720, "fps": 30, "tbr": 1500.0, "filesize": 3750000},
+  {"format_id": "v360", "url": "https://example.invalid/v360", "protocol": "https", "ext": "webm", "vcodec": "vp9", "acodec": "none", "video_ext": "webm", "audio_ext": "none", "width": 640, "height": 360, "fps": 30, "tbr": 500.0, "filesize": 1250000},
+  {"format_id": "a", "url": "https://example.invalid/a", "protocol": "https", "ext": "webm", "vcodec": "none", "acodec": "opus", "video_ext": "none", "audio_ext": "webm", "tbr": 128.0, "audio_channels": 2, "filesize": 320000}
+ ]}

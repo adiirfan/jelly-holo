@@ -1,0 +1,6 @@
+{"title": "AV1 only", "duration": 20.0, "webpage_url": "https://example.invalid/page", "is_live": false,
+ "formats": [
+  {"format_id": "v1080", "url": "https://example.invalid/v1080", "protocol": "https", "ext": "mp4", "vcodec": "av01.0.08M.08", "acodec": "none", "video_ext": "mp4", "audio_ext": "none", "width": 1920, "height": 1080, "fps": 30, "tbr": 2000.0},
+  {"format_id": "v480", "url": "https://example.invalid/v480", "protocol": "https", "ext": "mp4", "vcodec": "av01.0.04M.08", "acodec": "none", "video_ext": "mp4", "audio_ext": "none", "width": 854, "height": 480, "fps": 30, "tbr": 600.0},
+  {"format_id": "a", "url": "https://example.invalid/a", "protocol": "https", "ext": "m4a", "vcodec": "none", "acodec": "mp4a.40.2", "video_ext": "none", "audio_ext": "m4a", "tbr": 128.0, "audio_channels": 2}
+ ]}

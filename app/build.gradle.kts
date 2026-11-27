@@ -74,6 +74,8 @@ kapt {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    // Android's own org.json is only a stub in JVM tests
+    testImplementation("org.json:json:20240303")
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.cardview)
