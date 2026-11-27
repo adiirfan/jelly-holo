@@ -1,4 +1,4 @@
-//! Joins a TS stream into an MP4 from the command line, for checking files by hand.
+//! Joins a TS or fragmented-MP4 stream into an MP4 from the command line, for checking files by hand.
 //! cargo run --release --example remux -- video.ts [sound.ts] out.mp4
 use std::fs::File;
 use std::path::Path;
@@ -16,7 +16,13 @@ fn main() {
     };
     let t = Instant::now();
     let f = File::create(out).expect("can't create the output");
-    match jellyblock::remux::ts_to_mp4(Path::new(video), audio.map(Path::new), f) {
+    let r = match jellyblock::remux::ts_to_mp4(Path::new(video), audio.map(Path::new), &f) {
+        Err(jellyblock::remux::RemuxError::NotMine) => {
+            jellyblock::remux::fmp4_to_mp4(Path::new(video), audio.map(Path::new), &f)
+        }
+        r => r,
+    };
+    match r {
         Ok(s) => println!("{} pictures, {} sound frames in {:.2} s", s.pictures, s.sounds, t.elapsed().as_secs_f64()),
         Err(e) => {
             eprintln!("failed: {e}");
