@@ -289,7 +289,7 @@
     <string name="vp_volume">Volume %1$d%%</string>
     <string name="vp_skip_back">−10 s</string>
     <string name="vp_skip_forward">+10 s</string>
-    <string name="vp_stream_no_download">This video is streamed in pieces, so it can\'t be saved</string>
+    <string name="vp_stream_no_download">This video can\'t be saved: its stream wasn\'t found</string>
     <string name="vp_tap_video">Tap the video to open it in the player</string>
     <string name="pref_fast_downloads_title">Fast downloads</string>
     <string name="pref_fast_downloads_summary">Fetch large files in several parts at once, when the site allows it</string>
@@ -298,6 +298,12 @@
     <string name="download_progress">%1$s of %2$s · %3$s/s</string>
     <string name="download_done">Download complete. Tap to open.</string>
     <string name="download_failed">Couldn\'t download: %1$s</string>
+    <string name="download_pieces">%1$d of %2$d pieces</string>
+    <string name="download_joining">Joining the pieces…</string>
+    <string name="download_stream_not_found">Couldn\'t find this video\'s stream</string>
+    <string name="download_stream_live">Live broadcasts can\'t be saved</string>
+    <string name="download_stream_protected">This video is protected and can\'t be saved</string>
+    <string name="download_stream_join_failed">Couldn\'t join the sound and picture</string>
     <string name="download_started">Downloading %1$s</string>
     <string name="picker_hint">Tap the part of the page you want to hide</string>
     <string name="picker_cancel">Cancel</string>

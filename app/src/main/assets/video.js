@@ -28,6 +28,14 @@
     return 'none';
   }
 
+  /** The address the app may save: a plain file, or a stream's playlist (.m3u8). */
+  function srcFor(src) {
+    const kind = kindOf(src);
+    if (kind === 'file') return src;
+    if (kind === 'stream' && /^https?:/i.test(src) && /\.m3u8([?#]|$)/i.test(src)) return src;
+    return '';
+  }
+
   const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
 
   function big(v) {
@@ -49,7 +57,8 @@
       duration: isFinite(v.duration) ? v.duration : -1,
       rate: v.playbackRate,
       kind,
-      src: kind === 'file' ? src : '',
+      src: srcFor(src),
+      page: location.href,
       w: Math.round(r.width),
       h: Math.round(r.height),
       x: Math.round(r.left),
@@ -225,5 +234,5 @@
   }
   listen();
 
-  window.__jhVideo = { kindOf, handle, get active() { return active; } };
+  window.__jhVideo = { kindOf, srcFor, handle, get active() { return active; } };
 })();

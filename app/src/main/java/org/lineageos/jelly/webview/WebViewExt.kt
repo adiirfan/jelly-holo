@@ -81,6 +81,20 @@ class WebViewExt @JvmOverloads constructor(
     var jumpsAllowedUntil = 0L
 
     /** The line to the video player script in every frame of this tab. */
+    /** Stream playlists (.m3u8) this page has loaded, oldest first, for saving a streamed video. */
+    private val streamList = ArrayDeque<String>()
+
+    fun noteStream(url: String) = synchronized(streamList) {
+        if (url !in streamList) {
+            streamList.addLast(url)
+            while (streamList.size > 20) streamList.removeFirst()
+        }
+    }
+
+    fun streams(): List<String> = synchronized(streamList) { streamList.toList() }
+
+    fun clearStreams() = synchronized(streamList) { streamList.clear() }
+
     val video = VideoBridge { s -> if (::activity.isInitialized) activity.onVideoState(s) }
 
     fun onElementPicked(label: String) {

@@ -21,13 +21,16 @@ import android.os.SystemClock
 import android.provider.MediaStore
 import android.text.format.Formatter
 import android.util.Log
+import android.webkit.CookieManager
 import android.webkit.MimeTypeMap
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import org.lineageos.jelly.R
 import org.lineageos.jelly.adblock.AdBlock
+import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
@@ -74,6 +77,20 @@ class DownloadService : Service() {
                 thread(name = "Download$id") {
                     run(id, job, url, headers, intent.getStringExtra(EXTRA_MIME))
                 }
+            }
+
+            ACTION_START_STREAM -> {
+                val streams = intent.getStringArrayExtra(EXTRA_STREAMS)?.toList() ?: return START_NOT_STICKY
+                val name = (intent.getStringExtra(EXTRA_NAME) ?: "video") + ".mp4"
+                val id = nextId.incrementAndGet()
+                val job = Job(name)
+                running[id] = job
+                job.note = progress(id, name, 0, -1, 0)
+                startForeground(id, job.note!!, foregroundType())
+                val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
+                val referer = intent.getStringExtra(EXTRA_REFERER)
+                val duration = intent.getDoubleExtra(EXTRA_DURATION, -1.0)
+                thread(name = "Download$id") { runStream(id, job, streams, duration, userAgent, referer) }
             }
 
             else -> stopIfIdle()
@@ -152,6 +169,127 @@ class DownloadService : Service() {
     }
 
     /**
+     * A streamed video: find its playlist among [streams], download the
+     * pieces into the cache, then join them into one MP4 in Downloads.
+     */
+    private fun runStream(
+        id: Int,
+        job: Job,
+        streams: List<String>,
+        duration: Double,
+        userAgent: String?,
+        referer: String?,
+    ) {
+        var item: Uri? = null
+        val dir = File(cacheDir, "stream-$id")
+        val log: (String) -> Unit = { if (AdBlock.logging) Log.d(AdBlock.TAG, "dl ${job.name}: $it") }
+        val origin = referer?.let { r -> runCatching { Uri.parse(r).let { "${it.scheme}://${it.authority}" } }.getOrNull() }
+        val cookies = CookieManager.getInstance()
+        val hls = HlsDownload(
+            headersFor = { url ->
+                buildMap {
+                    userAgent?.let { put("User-Agent", it) }
+                    referer?.let { put("Referer", it) }
+                    origin?.let { put("Origin", it) }
+                    cookies.getCookie(url)?.takeIf { it.isNotEmpty() }?.let { put("Cookie", it) }
+                }
+            },
+            log = log,
+        )
+        val started = SystemClock.elapsedRealtime()
+        try {
+            val plan = hls.choose(streams, duration)
+            dir.mkdirs()
+            val video = File(dir, "video")
+            val audio = plan.audio?.let { File(dir, "audio") }
+            var lastShown = 0L
+            val ok = hls.download(
+                plan, video, audio,
+                progress = { done, total ->
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastShown >= 700) {
+                        lastShown = now
+                        job.note = piecesProgress(id, job.name, done, total)
+                        nm.notify(id, job.note!!)
+                    }
+                },
+                cancelled = { job.cancelled },
+            )
+            if (!ok) return
+            job.note = piecesProgress(id, job.name, -1, -1)
+            nm.notify(id, job.note!!)
+
+            item = newItem(job.name, "video/mp4")
+            val joinStart = SystemClock.elapsedRealtime()
+            val joined = contentResolver.openFileDescriptor(item, "rw").use { Remux.toMp4(video, audio, it!!.fileDescriptor, log) }
+            val joinSecs = (SystemClock.elapsedRealtime() - joinStart) / 1000.0
+            var mime = "video/mp4"
+            var name = job.name
+            if (!joined) {
+                // One track Android couldn't rewrite: keep the pieces as they came
+                if (audio != null) throw IOException(getString(R.string.download_stream_join_failed))
+                contentResolver.delete(item, null, null)
+                val ts = plan.video.init == null
+                mime = if (ts) "video/mp2t" else "video/mp4"
+                name = job.name.removeSuffix(".mp4") + if (ts) ".ts" else ".mp4"
+                item = newItem(name, mime)
+                contentResolver.openOutputStream(item!!).use { out -> video.inputStream().use { it.copyTo(out!!) } }
+            }
+            contentResolver.update(
+                item!!,
+                ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) },
+                null,
+                null,
+            )
+            val secs = (SystemClock.elapsedRealtime() - started) / 1000.0
+            Log.i(AdBlock.TAG, "downloaded stream $name: ${plan.pieces} pieces, joined=$joined in $joinSecs s, $secs s")
+            finished(id, name, item!!, mime)
+        } catch (e: HlsDownload.Refused) {
+            failed(id, job.name, getString(refusalText(e.reason)))
+        } catch (e: Exception) {
+            Log.w(AdBlock.TAG, "stream download failed: ${job.name}", e)
+            item?.let { runCatching { contentResolver.delete(it, null, null) } }
+            failed(id, job.name, getString(R.string.download_failed, e.message ?: e.javaClass.simpleName))
+        } finally {
+            dir.deleteRecursively()
+            ended(id)
+        }
+    }
+
+    private fun refusalText(reason: HlsDownload.Reason) = when (reason) {
+        HlsDownload.Reason.NOT_FOUND -> R.string.download_stream_not_found
+        HlsDownload.Reason.LIVE -> R.string.download_stream_live
+        HlsDownload.Reason.PROTECTED -> R.string.download_stream_protected
+    }
+
+    private fun newItem(name: String, mime: String): Uri = contentResolver.insert(
+        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+        ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, name)
+            put(MediaStore.Downloads.MIME_TYPE, mime)
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        },
+    ) ?: throw IOException("couldn't create the file")
+
+    /** Progress in pieces; done < 0 means the pieces are being joined. */
+    private fun piecesProgress(id: Int, name: String, done: Int, total: Int): Notification {
+        val cancel = PendingIntent.getService(
+            this, id,
+            Intent(this, DownloadService::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_ID, id),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val joining = done < 0
+        return base(name)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentText(if (joining) getString(R.string.download_joining) else getString(R.string.download_pieces, done, total))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setProgress(100, if (joining || total <= 0) 0 else done * 100 / total, joining)
+            .apply { if (!joining) addAction(0, getString(R.string.picker_cancel), cancel) }
+            .build()
+    }
+
+    /**
      * A job ended: its progress note goes. The service's foreground note
      * moves to another running job first, since Android won't clear the
      * note a foreground service is tied to.
@@ -225,12 +363,15 @@ class DownloadService : Service() {
         )
     }
 
-    private fun failed(id: Int, name: String, e: Exception) {
+    private fun failed(id: Int, name: String, e: Exception) =
+        failed(id, name, getString(R.string.download_failed, e.message ?: e.javaClass.simpleName))
+
+    private fun failed(id: Int, name: String, text: String) {
         nm.notify(
             id + DONE_OFFSET,
             base(name)
                 .setSmallIcon(android.R.drawable.stat_notify_error)
-                .setContentText(getString(R.string.download_failed, e.message ?: e.javaClass.simpleName))
+                .setContentText(text)
                 .setAutoCancel(true)
                 .build(),
         )
@@ -246,6 +387,9 @@ class DownloadService : Service() {
         private const val CHANNEL = "downloads"
         private const val ACTION_START = "start"
         private const val ACTION_CANCEL = "cancel"
+        private const val ACTION_START_STREAM = "start_stream"
+        private const val EXTRA_STREAMS = "streams"
+        private const val EXTRA_DURATION = "duration"
         private const val EXTRA_ID = "id"
         private const val EXTRA_URL = "url"
         private const val EXTRA_NAME = "name"
@@ -272,6 +416,25 @@ class DownloadService : Service() {
                 .putExtra(EXTRA_MIME, mime)
                 .putExtra(EXTRA_USER_AGENT, userAgent)
                 .putExtra(EXTRA_COOKIE, cookie)
+                .putExtra(EXTRA_REFERER, referer)
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        /** Saves a streamed video; [streams] are the playlists its page loaded, oldest first. */
+        fun startStream(
+            context: Context,
+            streams: List<String>,
+            duration: Double,
+            name: String,
+            userAgent: String?,
+            referer: String?,
+        ) {
+            val intent = Intent(context, DownloadService::class.java)
+                .setAction(ACTION_START_STREAM)
+                .putExtra(EXTRA_STREAMS, streams.toTypedArray())
+                .putExtra(EXTRA_DURATION, duration)
+                .putExtra(EXTRA_NAME, name)
+                .putExtra(EXTRA_USER_AGENT, userAgent)
                 .putExtra(EXTRA_REFERER, referer)
             ContextCompat.startForegroundService(context, intent)
         }

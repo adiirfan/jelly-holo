@@ -802,6 +802,10 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     private fun downloadVideo(state: VideoState) {
+        if (state.kind == "stream") {
+            downloadStream(state)
+            return
+        }
         if (state.kind != "file" || state.src.isEmpty()) {
             Toast.makeText(this, R.string.vp_stream_no_download, Toast.LENGTH_LONG).show()
             return
@@ -927,17 +931,39 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             .show()
     }
 
+    /** A streamed video: the playlists its page loaded are pieced back together. */
+    private fun downloadStream(state: VideoState) {
+        val streams = (webView.streams() + listOfNotNull(state.src.takeIf { it.isNotEmpty() })).distinct()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || streams.isEmpty()) {
+            Toast.makeText(this, R.string.vp_stream_no_download, Toast.LENGTH_LONG).show()
+            return
+        }
+        askForNotifications()
+        val name = state.title.replace(Regex("""[\\/:*?"<>|]"""), " ").trim().take(80).ifEmpty { "video" }
+        DownloadService.startStream(
+            this, streams, state.duration, name,
+            webView.settings.userAgentString,
+            state.page.ifEmpty { webView.url },
+        )
+        Toast.makeText(this, getString(R.string.download_started, "$name.mp4"), Toast.LENGTH_SHORT).show()
+    }
+
+    /** Download progress shows as a notification; ask once if needed. */
+    private fun askForNotifications() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
+        }
+    }
+
     private fun fetchFile(url: String?, userAgent: String?, fileName: String) {
         // Fast downloads: several parts at once, straight into Downloads
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && sharedPreferencesExt.fastDownloads &&
             url != null && (url.startsWith("https://") || url.startsWith("http://"))
         ) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
-            }
+            askForNotifications()
             DownloadService.start(
                 this, url, fileName,
                 MimeTypeMap.getSingleton().getMimeTypeFromExtension(

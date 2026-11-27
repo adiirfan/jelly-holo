@@ -116,7 +116,7 @@ class VideoPlayerView @JvmOverloads constructor(
         title.text = s.title
         play.setImageResource(if (s.playing) R.drawable.ic_vp_pause else R.drawable.ic_vp_play)
         speed.text = speedLabel(s.rate)
-        download.alpha = if (s.kind == "file") 1f else 0.4f
+        download.alpha = if (s.kind == "file" || s.kind == "stream") 1f else 0.4f
         if (!seeking && !scrubbing) {
             timeText.text = formatTime(s.time)
             if (s.duration > 0) seek.progress = (s.time / s.duration * seek.max).roundToInt()

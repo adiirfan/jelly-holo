@@ -91,10 +91,13 @@ internal class WebClient(
             ext.checkedCount.set(0)
             ext.slowestCheckNanos.set(0)
             ext.checkCpuNanos.set(0)
+            ext.clearStreams()
             blocking = prefs.adBlockEnabled &&
                     request.url.host !in prefs.adBlockAllowedHosts
             return null
         }
+        // Noted even with blocking off: the video player's Download uses them
+        if (request.url.path?.endsWith(".m3u8", ignoreCase = true) == true) ext.noteStream(url)
         if (!blocking) return null
         val log = AdBlock.logging
         val cpu = if (log) android.os.Debug.threadCpuTimeNanos() else 0L

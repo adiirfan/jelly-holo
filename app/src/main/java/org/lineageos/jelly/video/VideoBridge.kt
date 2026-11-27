@@ -31,6 +31,8 @@ data class VideoState(
     val gesture: Boolean,
     val muted: Boolean,
     val title: String,
+    /** The address of the page or frame the video is in. */
+    val page: String = "",
 ) {
     companion object {
         fun parse(json: String): VideoState? = runCatching {
@@ -55,6 +57,7 @@ data class VideoState(
                 gesture = o.optBoolean("gesture"),
                 muted = o.optBoolean("muted"),
                 title = o.optString("title"),
+                page = o.optString("page"),
             )
         }.getOrNull()
     }

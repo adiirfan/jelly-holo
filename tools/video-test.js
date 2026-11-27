@@ -69,6 +69,19 @@ test('a playing video file is reported with its address', async page => {
   assert.ok(s.w > 300 && s.h > 150, `${s.w}x${s.h}`);
 });
 
+test('the state names the page the video is in', async page => {
+  await play(page);
+  await page.waitForTimeout(800);
+  const s = await lastState(page);
+  assert.strictEqual(s.page, await page.evaluate(() => location.href));
+});
+
+test('a stream playlist address is passed on, other streams are not', async page => {
+  const r = await page.evaluate(() => [__jhVideo.srcFor('https://x.org/live/master.m3u8?t=1'), __jhVideo.srcFor('blob:https://x.org/abc'),
+    __jhVideo.srcFor('https://x.org/a.mpd'), __jhVideo.srcFor('https://x.org/clip.mp4')]);
+  assert.deepStrictEqual(r, ['https://x.org/live/master.m3u8?t=1', '', '', 'https://x.org/clip.mp4']);
+});
+
 test('streamed video is told apart from files', async page => {
   const kinds = await page.evaluate(() => {
     const k = src => __jhVideo.kindOf(src);
