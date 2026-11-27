@@ -269,6 +269,8 @@
     <string name="adblock_allow_site">Allow ads on this site</string>
     <string name="adblock_blocked_count">Ads blocked: %1$d</string>
     <string name="menu_hide_element">Hide an element</string>
+    <string name="jump_stopped">Stopped an ad redirect to %1$s</string>
+    <string name="jump_go_anyway">Go anyway</string>
     <string name="picker_hint">Tap the part of the page you want to hide</string>
     <string name="picker_cancel">Cancel</string>
     <string name="picker_smaller">Smaller</string>

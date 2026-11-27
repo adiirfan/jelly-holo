@@ -175,3 +175,72 @@ fn frame_requests_are_subdocuments() {
     assert!(b.should_block("https://adframes.example.net/slot", PAGE, FRAME));
     assert!(!b.should_block("https://adframes.example.net/a.js", PAGE, "*/*"));
 }
+
+const NEWS: &str = "https://www.some-news-site.com/article";
+
+#[test]
+fn page_jump_to_listed_host_blocked() {
+    let b = Blocker::new();
+    assert!(b.load(&compile(&["||adredirect.example^"])));
+    assert!(b.should_block_page("https://adredirect.example/go?id=1", NEWS));
+    assert!(b.should_block_page("https://www.adredirect.example/", NEWS));
+}
+
+#[test]
+fn page_jump_to_normal_site_allowed() {
+    let b = Blocker::new();
+    assert!(b.load(&compile(&["||adredirect.example^"])));
+    assert!(!b.should_block_page("https://www.wikipedia.org/", NEWS));
+}
+
+#[test]
+fn popup_only_rule_blocks_page_jump() {
+    let b = Blocker::new();
+    assert!(b.load(&compile(&["||popnet.example^$popup"])));
+    assert!(b.should_block_page("https://popnet.example/x", NEWS));
+    assert!(!b.should_block("https://popnet.example/x.js", NEWS, "*/*"));
+}
+
+#[test]
+fn page_jump_without_a_page_allowed() {
+    let b = Blocker::new();
+    assert!(b.load(&compile(&["||adredirect.example^"])));
+    assert!(!b.should_block_page("https://adredirect.example/", ""));
+    assert!(!b.should_block_page("https://adredirect.example/", "about:blank"));
+    assert!(!b.should_block_page("intent://adredirect.example/", NEWS));
+}
+
+#[test]
+fn real_lists_stop_ad_redirects_only() {
+    let (Ok(easylist), Ok(easyprivacy)) =
+        (std::fs::read_to_string("lists/easylist.txt"), std::fs::read_to_string("lists/easyprivacy.txt"))
+    else {
+        eprintln!("skipped: lists not downloaded");
+        return;
+    };
+    let b = Blocker::new();
+    assert!(b.load(&compile(&[&easylist, &easyprivacy])));
+    for url in [
+        "https://ad.doubleclick.net/ddm/clk/123;abc",
+        "https://www.popads.net/",
+        "https://syndication.exoclick.com/splash.php?idzone=1",
+    ] {
+        assert!(b.should_block_page(url, NEWS), "{url} should be stopped");
+    }
+    for url in [
+        "https://www.wikipedia.org/",
+        "https://accounts.google.com/o/oauth2/auth?x=1",
+        "https://www.google.com/url?q=https://x.com",
+        "https://t.co/abc",
+        "https://www.facebook.com/",
+    ] {
+        assert!(!b.should_block_page(url, NEWS), "{url} should be allowed");
+    }
+}
+
+#[test]
+fn popup_exceptions_do_not_unblock_pages() {
+    let b = Blocker::new();
+    assert!(b.load(&compile(&["||ads.example^\n@@||news.example^$popup"])));
+    assert!(b.should_block("https://ads.example/a.js", "https://news.example/", "*/*"));
+}

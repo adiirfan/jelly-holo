@@ -36,6 +36,7 @@ import android.print.PrintManager
 import android.text.TextUtils
 import android.util.Log
 import android.view.View
+import android.os.SystemClock
 import android.widget.TextView
 import org.lineageos.jelly.utils.AssetLoader
 import org.lineageos.jelly.js.JsElementHide
@@ -610,6 +611,22 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
     override fun onElementPicked(label: String) {
         if (picking) showPicked(label)
+    }
+
+    override fun onJumpStopped(url: String, newTab: Boolean) {
+        val host = Uri.parse(url).host ?: url
+        Snackbar.make(
+            constraintLayout,
+            getString(R.string.jump_stopped, host),
+            Snackbar.LENGTH_LONG
+        ).setAction(R.string.jump_go_anyway) {
+            if (newTab) {
+                openInNewTab(this, url, incognito)
+            } else {
+                webView.jumpsAllowedUntil = SystemClock.elapsedRealtime() + 15_000
+                webView.loadUrl(url)
+            }
+        }.show()
     }
 
     override fun onPageNavigated() {

@@ -163,6 +163,17 @@ internal class WebClient(
         if (request.isForMainFrame) {
             val webViewExt = view as WebViewExt
             val url = request.url.toString()
+            // Pages that throw the tab to an ad: by script, by hijacking a tap,
+            // or by a server redirect. Addresses typed or picked by the user
+            // never come through here.
+            if (SystemClock.elapsedRealtime() > webViewExt.jumpsAllowedUntil &&
+                AdBlock.stopsJump(prefs, url, view.url)
+            ) {
+                if (AdBlock.logging) Log.d(AdBlock.TAG, "stopped jump to ${url.take(140)}")
+                webViewExt.blockedCount.incrementAndGet()
+                (context as? WebViewExtActivity)?.onJumpStopped(url, newTab = false)
+                return true
+            }
             val needsLookup = (request.hasGesture()
                     || !TextUtils.equals(url, webViewExt.lastLoadedUrl))
             if (!webViewExt.isIncognito

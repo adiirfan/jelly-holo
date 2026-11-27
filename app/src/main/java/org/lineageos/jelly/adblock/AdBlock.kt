@@ -6,6 +6,8 @@
 package org.lineageos.jelly.adblock
 
 import android.content.Context
+import android.net.Uri
+import org.lineageos.jelly.utils.SharedPreferencesExt
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -67,6 +69,18 @@ object AdBlock {
     fun shouldBlock(url: String, pageUrl: String, accept: String): Boolean =
         nativeShouldBlock(url, pageUrl, accept)
 
+    /**
+     * Whether the page at `fromUrl` jumping to `url` (same tab or a new one)
+     * should be stopped: blocking is on, the page's site isn't allowed, and
+     * `url` is a known ad or tracker address.
+     */
+    fun stopsJump(prefs: SharedPreferencesExt, url: String, fromUrl: String?): Boolean {
+        if (fromUrl == null || !prefs.adBlockEnabled) return false
+        val fromHost = runCatching { Uri.parse(fromUrl).host }.getOrNull() ?: return false
+        if (fromHost in prefs.adBlockAllowedHosts) return false
+        return nativeShouldBlockPage(url, fromUrl)
+    }
+
     /** The stylesheet that hides the user's chosen elements on the page at `url`. */
     fun hideCss(url: String): String = nativeHideCss(url) ?: ""
 
@@ -125,6 +139,9 @@ object AdBlock {
 
     @JvmStatic
     private external fun nativeShouldBlock(url: String, pageUrl: String, accept: String): Boolean
+
+    @JvmStatic
+    private external fun nativeShouldBlockPage(url: String, fromUrl: String): Boolean
 
     @JvmStatic
     private external fun nativeSetElementRules(rules: String)

@@ -75,6 +75,9 @@ class WebViewExt @JvmOverloads constructor(
     @Volatile
     var startedUrl = ""
 
+    /** After "Go anyway", ad redirects aren't stopped in this tab until this time. */
+    var jumpsAllowedUntil = 0L
+
     fun onElementPicked(label: String) {
         if (::activity.isInitialized) activity.onElementPicked(label)
     }

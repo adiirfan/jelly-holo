@@ -31,4 +31,5 @@
     <color name="holo_toolbar_divider">#C4C4C4</color>
     <color name="holo_tab_title">#F0F0F0</color>
     <color name="holo_category_rule">#8033B5E5</color>
+    <color name="holo_snackbar">#333333</color>
 </resources>

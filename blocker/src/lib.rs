@@ -14,9 +14,39 @@ mod jni;
 pub fn compile(lists: &[&str]) -> Vec<u8> {
     let mut set = FilterSet::new(false);
     for list in lists {
-        set.add_filter_list(list.to_string(), ParseOptions::default());
+        set.add_filter_list(popups_as_pages(list), ParseOptions::default());
     }
     Engine::new_with_filter_set(set).serialize()
+}
+
+/// adblock-rust drops rules marked `$popup` (pop-up windows only). They name
+/// the networks that redirect tabs, so they become `$document` rules, which
+/// stop whole-page visits and nothing a page loads inside itself. Pop-up
+/// exceptions are dropped: as `$document` they would turn blocking off for
+/// whole sites.
+fn popups_as_pages(list: &str) -> String {
+    let mut out = String::with_capacity(list.len());
+    for line in list.lines() {
+        let rule = line.trim();
+        let popup = !rule.starts_with('!')
+            && !rule.contains("##")
+            && !rule.contains("#@#")
+            && rule.rfind('$').is_some_and(|i| rule[i + 1..].split(',').any(|o| o == "popup"));
+        if !popup {
+            out.push_str(line);
+        } else if !rule.starts_with("@@") {
+            let i = rule.rfind('$').unwrap_or(rule.len());
+            let options: Vec<&str> = rule[i + 1..]
+                .split(',')
+                .map(|o| if o == "popup" { "document" } else { o })
+                .collect();
+            out.push_str(&rule[..i]);
+            out.push('$');
+            out.push_str(&options.join(","));
+        }
+        out.push('\n');
+    }
+    out
 }
 
 /// The loaded engine, shared by every page-loading thread.
@@ -58,6 +88,27 @@ impl Blocker {
             return false;
         };
         engine.check_network_request(&request).should_block()
+    }
+
+    /// Whether the page at `from_url` jumping to `url` (in its own tab, or by
+    /// opening a new one) should be stopped: `url` is a known ad or tracker
+    /// address. Rules meant only for pop-up windows count too, since the same
+    /// networks redirect tabs. Without a real page to jump from, nothing is
+    /// stopped.
+    pub fn should_block_page(&self, url: &str, from_url: &str) -> bool {
+        if !(from_url.starts_with("http://") || from_url.starts_with("https://")) {
+            return false;
+        }
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return false;
+        }
+        let Ok(guard) = self.engine.read() else { return false };
+        let Some(engine) = guard.as_ref() else { return false };
+        ["document", "popup"].iter().any(|kind| {
+            Request::new(url, from_url, kind, "GET")
+                .map(|r| engine.check_network_request(&r).should_block())
+                .unwrap_or(false)
+        })
     }
 }
 

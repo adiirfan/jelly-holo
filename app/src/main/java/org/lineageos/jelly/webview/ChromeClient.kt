@@ -19,6 +19,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import org.lineageos.jelly.R
+import org.lineageos.jelly.adblock.AdBlock
 import org.lineageos.jelly.js.JsManifest
 import org.lineageos.jelly.ui.UrlBarLayout
 import org.lineageos.jelly.utils.SharedPreferencesExt
@@ -146,10 +147,20 @@ internal class ChromeClient(
 
         val transport = WebView.WebViewTransport::class.cast(resultMsg.obj)
         val tempWebView = WebView(view.context)
+        val opener = view.url
 
         tempWebView.webViewClient = object : WebViewClient() {
+            private var done = false
+
             override fun onLoadResource(view: WebView, url: String) {
+                if (done) return
+                done = true
                 tempWebView.destroy()
+                // New tabs that pages open on ad networks ("pop-unders")
+                if (AdBlock.stopsJump(sharedPreferencesExt, url, opener)) {
+                    activity.onJumpStopped(url, newTab = true)
+                    return
+                }
                 openInNewTab(activity, url, incognito)
             }
         }

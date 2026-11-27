@@ -44,6 +44,9 @@ abstract class WebViewExtActivity : AppCompatActivity() {
     /** The element picker chose something (`label` describes it; empty for nothing). */
     open fun onElementPicked(label: String) {}
 
+    /** An ad redirect to `url` was stopped, in this tab or as a new one. */
+    open fun onJumpStopped(url: String, newTab: Boolean) {}
+
     /** A new page started loading in this tab. */
     open fun onPageNavigated() {}
 }

@@ -67,6 +67,10 @@
         <item name="materialCardViewStyle">@style/Widget.Holo.CardView</item>
         <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Holo.BottomSheetDialog</item>
         <item name="snackbarStyle">@style/Widget.Holo.Snackbar</item>
+        <!-- Notes at the foot of the screen: dark with white text, as on Android 4 -->
+        <item name="colorSurfaceInverse">@color/holo_snackbar</item>
+        <item name="colorOnSurfaceInverse">@android:color/white</item>
+        <item name="colorPrimaryInverse">@color/holo_blue</item>
 
         <!-- Black status and navigation bars, as on Android 4 -->
         <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>

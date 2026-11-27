@@ -97,3 +97,19 @@ pub extern "system" fn Java_org_lineageos_jelly_adblock_AdBlock_nativeHideCss(
     .unwrap_or_default();
     env.new_string(css).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
 }
+
+#[no_mangle]
+pub extern "system" fn Java_org_lineageos_jelly_adblock_AdBlock_nativeShouldBlockPage(
+    mut env: JNIEnv,
+    _class: JClass,
+    url: JString,
+    from_url: JString,
+) -> jboolean {
+    let block = catch_unwind(AssertUnwindSafe(|| {
+        let (Some(url), Some(from)) = (string(&mut env, &url), string(&mut env, &from_url)) else {
+            return false;
+        };
+        BLOCKER.should_block_page(&url, &from)
+    }));
+    flag(block.unwrap_or(false))
+}
