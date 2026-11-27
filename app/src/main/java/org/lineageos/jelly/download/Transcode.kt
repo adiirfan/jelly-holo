@@ -12,6 +12,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.os.Build
+import android.view.Surface
 import java.io.File
 import java.io.FileDescriptor
 import java.io.IOException
@@ -39,6 +40,8 @@ object Transcode {
     private const val TIMEOUT_US = 10_000L
     /** No frame in or out for this long means the hardware has stuck. */
     private const val STALL_NS = 30_000_000_000L
+    /** How long a decoded frame may take to reach the graphics chip. */
+    private const val FRAME_WAIT_MS = 2_500L
 
     class Cancelled : IOException("cancelled")
 
@@ -75,7 +78,18 @@ object Transcode {
                 if (!soundToAac(soundSource, tempSound, cancelled, log)) return false
                 sound = openTrack(tempSound, "audio/")
             }
-            return pictures(video, sound, out, progress, cancelled, log, lengthUs)
+            // The graphics chip first; copying through memory if it can't start
+            val gl = runCatching { picturesGl(video, sound, out, progress, cancelled, log, lengthUs) }
+            gl.exceptionOrNull()?.let { e ->
+                if (e !is GlUnavailable) {
+                    sound?.first?.release()
+                    throw e
+                }
+                log("graphics path unavailable (${e.cause}), copying frames instead")
+                return pictures(video, sound, out, progress, cancelled, log, lengthUs)
+            }
+            sound?.first?.release()
+            return gl.getOrThrow()
         } catch (e: Cancelled) {
             return false
         } finally {
@@ -100,6 +114,206 @@ object Transcode {
         }
         ex.release()
         return null
+    }
+
+    /** The graphics path failed before anything was written, so the other path can still run. */
+    private class GlUnavailable(cause: Throwable) : IOException(cause)
+
+    private fun frameRate(f: MediaFormat): Double = if (f.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+        runCatching { f.getInteger(MediaFormat.KEY_FRAME_RATE).toDouble() }
+            .getOrElse { f.getFloat(MediaFormat.KEY_FRAME_RATE).toDouble() }
+    } else {
+        30.0
+    }
+
+    /**
+     * Converts the picture with the graphics chip between decoder and
+     * encoder: the decoder draws each frame, the chip paints it onto the
+     * encoder's input. Leaves [sound] open for the caller. Throws
+     * [GlUnavailable] when it fails before writing anything to [out].
+     */
+    private fun picturesGl(
+        file: File,
+        sound: Pair<MediaExtractor, MediaFormat>?,
+        out: FileDescriptor,
+        progress: (Int) -> Unit,
+        cancelled: () -> Boolean,
+        log: (String) -> Unit,
+        lengthUs: Long,
+    ): Boolean {
+        val (ex, inFormat) = openTrack(file, "video/") ?: throw IOException("no picture found")
+        var decoder: MediaCodec? = null
+        var encoder: MediaCodec? = null
+        var encoderInput: Surface? = null
+        var bridge: GlBridge? = null
+        var muxer: MediaMuxer? = null
+        var muxing = false
+        try {
+            val width = inFormat.getInteger(MediaFormat.KEY_WIDTH)
+            val height = inFormat.getInteger(MediaFormat.KEY_HEIGHT)
+            if (!encodable(width, height)) throw IOException("this phone can't make H.264 at ${width}x$height")
+            val fps = frameRate(inFormat)
+            val duration = inFormat.takeIf { it.containsKey(MediaFormat.KEY_DURATION) }
+                ?.getLong(MediaFormat.KEY_DURATION)?.takeIf { it > 0 } ?: lengthUs
+            try {
+                val outFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
+                    setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+                    setInteger(MediaFormat.KEY_BIT_RATE, bitrateFor(width, height, fps))
+                    setInteger(MediaFormat.KEY_FRAME_RATE, fps.toInt().coerceAtLeast(1))
+                    setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
+                }
+                encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+                encoder.configure(outFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                encoderInput = encoder.createInputSurface()
+                bridge = GlBridge(encoderInput, width, height)
+                encoder.start()
+                decoder = MediaCodec.createDecoderByType(inFormat.getString(MediaFormat.KEY_MIME)!!)
+                decoder.configure(inFormat, bridge.decoderSurface, null, 0)
+                decoder.start()
+            } catch (t: Throwable) {
+                throw GlUnavailable(t)
+            }
+            log("converting ${inFormat.getString(MediaFormat.KEY_MIME)} ${width}x$height at $fps fps with ${decoder.name} -> graphics -> ${encoder.name}")
+
+            var videoTrack = -1
+            var soundTrack = -1
+            val soundBuf = ByteBuffer.allocate(
+                sound?.second?.takeIf { it.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE) }
+                    ?.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE)?.coerceAtLeast(64 * 1024) ?: (256 * 1024)
+            )
+            val soundInfo = MediaCodec.BufferInfo()
+            var soundDone = sound == null
+
+            // Copies the sound up to [until] (microseconds), so the file is interleaved
+            fun copySound(until: Long) {
+                val s = sound ?: return
+                val m = muxer ?: return
+                while (!soundDone && muxing) {
+                    val t = s.first.sampleTime
+                    if (t < 0) {
+                        soundDone = true
+                        break
+                    }
+                    if (t > until) break
+                    val n = s.first.readSampleData(soundBuf, 0)
+                    if (n < 0) {
+                        soundDone = true
+                        break
+                    }
+                    soundInfo.set(0, n, t, if (s.first.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
+                    m.writeSampleData(soundTrack, soundBuf, soundInfo)
+                    s.first.advance()
+                }
+            }
+
+            val info = MediaCodec.BufferInfo()
+            val encInfo = MediaCodec.BufferInfo()
+            var inputDone = false
+            var decodeDone = false
+            var encodeDone = false
+            var lastShown = -1
+            var frames = 0
+            var drawNs = 0L
+            val t0 = System.nanoTime()
+            var lastMoved = t0
+            while (!encodeDone) {
+                if (cancelled()) throw Cancelled()
+                if (System.nanoTime() - lastMoved > STALL_NS) throw IOException("the converter stopped making progress")
+                var moved = false
+                if (!inputDone) {
+                    val i = decoder.dequeueInputBuffer(0)
+                    if (i >= 0) {
+                        val n = ex.readSampleData(decoder.getInputBuffer(i)!!, 0)
+                        if (n < 0) {
+                            decoder.queueInputBuffer(i, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            inputDone = true
+                        } else {
+                            decoder.queueInputBuffer(i, 0, n, ex.sampleTime, 0)
+                            ex.advance()
+                        }
+                        moved = true
+                    }
+                }
+                if (!decodeDone) {
+                    val o = decoder.dequeueOutputBuffer(info, 0)
+                    if (o >= 0) {
+                        moved = true
+                        val draw = info.size != 0
+                        // One frame at a time: the decoder draws it, then it's painted before the next
+                        decoder.releaseOutputBuffer(o, draw)
+                        if (draw) {
+                            if (!bridge.awaitFrame(FRAME_WAIT_MS)) throw IOException("a decoded frame never arrived")
+                            val d = System.nanoTime()
+                            bridge.draw(info.presentationTimeUs)
+                            drawNs += System.nanoTime() - d
+                            frames++
+                        }
+                        if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                            encoder.signalEndOfInputStream()
+                            decodeDone = true
+                        }
+                    }
+                }
+                while (true) {
+                    val e = encoder.dequeueOutputBuffer(encInfo, if (decodeDone || !moved) 2_000 else 0)
+                    if (e == MediaCodec.INFO_TRY_AGAIN_LATER) break
+                    moved = true
+                    if (e == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        // Nothing is written until the encoder has made something
+                        val m = MediaMuxer(out, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+                        muxer = m
+                        if (inFormat.containsKey(MediaFormat.KEY_ROTATION)) {
+                            m.setOrientationHint(inFormat.getInteger(MediaFormat.KEY_ROTATION))
+                        }
+                        videoTrack = m.addTrack(encoder.outputFormat)
+                        sound?.let { soundTrack = m.addTrack(it.second) }
+                        m.start()
+                        muxing = true
+                        continue
+                    }
+                    if (e < 0) continue
+                    val data = encoder.getOutputBuffer(e)!!
+                    if (encInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) encInfo.size = 0
+                    if (encInfo.size > 0 && muxing) {
+                        copySound(encInfo.presentationTimeUs)
+                        muxer!!.writeSampleData(videoTrack, data, encInfo)
+                        if (duration > 0) {
+                            val pct = (encInfo.presentationTimeUs * 100 / duration).toInt().coerceIn(0, 100)
+                            if (pct != lastShown) {
+                                lastShown = pct
+                                progress(pct)
+                            }
+                        }
+                    }
+                    encoder.releaseOutputBuffer(e, false)
+                    if (encInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                        encodeDone = true
+                        break
+                    }
+                }
+                if (moved) lastMoved = System.nanoTime()
+            }
+            if (!muxing) throw IOException("the encoder made nothing")
+            copySound(Long.MAX_VALUE)
+            muxer!!.stop()
+            muxing = false
+            log("converted $frames frames in ${(System.nanoTime() - t0) / 1_000_000} ms with the graphics chip, drawing took ${drawNs / 1_000_000} ms")
+            return true
+        } catch (t: Throwable) {
+            // Failing before the file was started still leaves the other path open
+            if (t !is GlUnavailable && t !is Cancelled && muxer == null) throw GlUnavailable(t)
+            throw t
+        } finally {
+            runCatching { decoder?.stop() }
+            runCatching { decoder?.release() }
+            runCatching { encoder?.stop() }
+            runCatching { encoder?.release() }
+            runCatching { bridge?.close() }
+            runCatching { encoderInput?.release() }
+            if (muxing) runCatching { muxer?.stop() }
+            runCatching { muxer?.release() }
+            ex.release()
+        }
     }
 
     private fun pictures(
