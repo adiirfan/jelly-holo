@@ -9,6 +9,7 @@ import android.content.Context
 import android.util.Log
 import org.lineageos.jelly.adblock.AdBlock
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.util.zip.ZipInputStream
 import kotlin.concurrent.thread
@@ -119,11 +120,12 @@ class YtDlpRuntime(context: Context) {
     private val versionFile = File(root, "yt-dlp.version")
 
     /**
-     * yt-dlp unpacked and compiled once. Run from its packed file, Python
-     * compiles all of it again on every lookup, which costs seconds.
+     * yt-dlp unpacked and compiled once, in a folder per version. Run from
+     * its packed file, Python compiles all of it again on every lookup,
+     * which costs seconds. A new version gets a new folder, so a yt-dlp
+     * still running from the old one isn't pulled out from under it.
      */
-    private val appDir = File(root, "app")
-    private val appVersionFile = File(root, "app.version")
+    private fun appDir(version: String?) = File(root, "app-${version ?: "none"}")
 
     /** The version of the yt-dlp in use, as recorded when it was put there. */
     fun installedVersion(): String? = versionFile.takeIf { it.exists() }?.readText()?.trim()
@@ -133,51 +135,50 @@ class YtDlpRuntime(context: Context) {
         get() = runCatching { app.assets.open("ytdlp/version").use { it.readBytes().decodeToString().trim() } }
             .getOrDefault("")
 
-    /** True when Python still has to be unpacked (the first run is slower). */
+    /** True when Python or yt-dlp still has to be unpacked (that run is slower). */
     val needsUnpacking
         get() = marker.takeIf { it.exists() }?.readText() != stamp() ||
-            !File(appDir, "__main__.py").exists() ||
-            appVersionFile.takeIf { it.exists() }?.readText() != installedVersion()
+            !File(appDir(installedVersion()), "__main__.py").exists()
 
     private fun stamp(): String {
         val info = app.packageManager.getPackageInfo(app.packageName, 0)
         return "${info.longVersionCode}:${info.lastUpdateTime}"
     }
 
-    /** Unpacks what's missing. Slow the first time; call it off the main thread. */
-    @Synchronized
-    fun prepare(): Boolean = runCatching {
-        if (needsUnpacking) {
-            val t = System.nanoTime()
-            prefix.deleteRecursively()
-            prefix.mkdirs()
-            app.assets.open("ytdlp/python.zip").use { unzip(it, prefix) }
-            writeCerts()
-            compile(File(prefix, "lib/python3.14"))
-            marker.writeText(stamp())
-            Log.i(AdBlock.TAG, "yt-dlp: unpacked Python in ${(System.nanoTime() - t) / 1_000_000} ms")
+    /**
+     * Unpacks what's missing. Slow the first time; call it off the main
+     * thread. [cancelled] stops the compiling (it only saves time later).
+     */
+    fun prepare(cancelled: () -> Boolean = { false }): Boolean = synchronized(LOCK) {
+        runCatching {
+            if (marker.takeIf { it.exists() }?.readText() != stamp()) {
+                val t = System.nanoTime()
+                prefix.deleteRecursively()
+                prefix.mkdirs()
+                app.assets.open("ytdlp/python.zip").use { unzip(it, prefix) }
+                writeCerts()
+                compile(File(prefix, "lib/python3.14"), cancelled)
+                marker.writeText(stamp())
+                Log.i(AdBlock.TAG, "yt-dlp: unpacked Python in ${(System.nanoTime() - t) / 1_000_000} ms")
+            }
+            // An app update may ship a newer yt-dlp than the one updated to
+            if (!ytdlpFile.exists() || isNewer(shippedVersion, installedVersion() ?: "")) copyShipped()
+            if (!File(appDir(installedVersion()), "__main__.py").exists()) unpackApp(cancelled)
+            home.mkdirs()
+            cache.mkdirs()
+            true
+        }.getOrElse {
+            Log.w(AdBlock.TAG, "yt-dlp: couldn't get ready", it)
+            false
         }
-        // An app update may ship a newer yt-dlp than the one updated to
-        if (!ytdlpFile.exists() || isNewer(shippedVersion, installedVersion() ?: "")) copyShipped()
-        if (!File(appDir, "__main__.py").exists() ||
-            appVersionFile.takeIf { it.exists() }?.readText() != installedVersion()
-        ) {
-            unpackApp()
-        }
-        home.mkdirs()
-        cache.mkdirs()
-        true
-    }.getOrElse {
-        Log.w(AdBlock.TAG, "yt-dlp: couldn't get ready", it)
-        false
     }
 
     /** Replaces the yt-dlp in use with the one that shipped with the app. */
-    fun copyShipped() {
+    private fun copyShipped() {
         root.mkdirs()
-        val tmp = File(root, "yt-dlp.tmp")
+        val tmp = File(root, "yt-dlp.shipped.tmp")
         app.assets.open("ytdlp/yt-dlp").use { input -> tmp.outputStream().use { input.copyTo(it) } }
-        tmp.renameTo(ytdlpFile)
+        if (!tmp.renameTo(ytdlpFile)) throw IOException("couldn't put yt-dlp in place")
         versionFile.writeText(shippedVersion)
     }
 
@@ -190,14 +191,20 @@ class YtDlpRuntime(context: Context) {
     }
 
     /** Compiles Python code under [dir] once, so later runs only load it. */
-    private fun compile(dir: File) {
+    private fun compile(dir: File, cancelled: () -> Boolean) {
         val t = System.nanoTime()
-        val r = runWithLimit(python(listOf("-m", "compileall", "-q", "-j", "0", dir.path)), 180_000, { false })
+        val r = runWithLimit(python(listOf("-m", "compileall", "-q", "-j", "0", dir.path)), 180_000, cancelled)
         Log.i(AdBlock.TAG, "yt-dlp: compiled ${dir.name} in ${(System.nanoTime() - t) / 1_000_000} ms (exit ${r.code})")
     }
 
-    /** Unpacks the yt-dlp in use into a folder and compiles it. */
-    private fun unpackApp() {
+    /**
+     * Unpacks the yt-dlp in use into its version's folder and compiles it.
+     * Other versions' folders are removed, except [keep] (the one a running
+     * download may still be using).
+     */
+    private fun unpackApp(cancelled: () -> Boolean = { false }, keep: File? = null): Boolean {
+        val version = installedVersion()
+        val target = appDir(version)
         val tmp = File(root, "app.tmp")
         tmp.deleteRecursively()
         // Python reads the file: it starts with a "#!" line Java's zip reader trips over
@@ -208,22 +215,45 @@ class YtDlpRuntime(context: Context) {
         if (r.code != 0 || !File(tmp, "__main__.py").exists()) {
             Log.w(AdBlock.TAG, "yt-dlp: couldn't unpack (${r.code}): ${r.err.takeLast(300)}")
             tmp.deleteRecursively()
-            return
+            return false
         }
-        compile(tmp)
-        appDir.deleteRecursively()
-        tmp.renameTo(appDir)
-        appVersionFile.writeText(installedVersion() ?: "")
+        compile(tmp, cancelled)
+        target.deleteRecursively()
+        if (!tmp.renameTo(target)) {
+            tmp.deleteRecursively()
+            return false
+        }
+        val kept = setOf(target.name, keep?.name)
+        root.listFiles { f -> f.isDirectory && f.name.startsWith("app-") && f.name !in kept }
+            ?.forEach { it.deleteRecursively() }
+        return true
     }
 
-    /** Looks for a newer yt-dlp (at most daily unless [force]); call off the main thread. */
-    fun update(force: Boolean): UpdateResult {
+    /**
+     * Looks for a newer yt-dlp (at most daily unless [force]); call off the
+     * main thread. A new version is kept only if it runs and says it's that
+     * version; otherwise the old one comes back.
+     */
+    fun update(force: Boolean): UpdateResult = synchronized(LOCK) {
         if (!prepare()) return UpdateResult(Outcome.FAILED)
-        val r = YtDlpUpdate.forApp(app).check(installedVersion() ?: shippedVersion, ytdlpFile, force)
+        val old = installedVersion() ?: shippedVersion
+        val backup = File(root, "yt-dlp.bak")
+        ytdlpFile.copyTo(backup, overwrite = true)
+        var r = YtDlpUpdate.forApp(app).check(old, ytdlpFile, force)
         if (r.outcome == Outcome.UPDATED) {
             r.version?.let { versionFile.writeText(it) }
-            unpackApp()
+            val works = unpackApp(keep = appDir(old)) && runWithLimit(command(listOf("--version")), 30_000, { false })
+                .let { it.code == 0 && it.out.trim() == r.version }
+            if (!works) {
+                Log.w(AdBlock.TAG, "yt-dlp ${r.version} doesn't run here; keeping $old")
+                backup.copyTo(ytdlpFile, overwrite = true)
+                versionFile.writeText(old)
+                appDir(r.version).deleteRecursively()
+                if (!File(appDir(old), "__main__.py").exists()) unpackApp()
+                r = UpdateResult(Outcome.FAILED)
+            }
         }
+        backup.delete()
         Log.i(AdBlock.TAG, "yt-dlp update check: ${r.outcome} ${r.version ?: ""}")
         return r
     }
@@ -262,8 +292,14 @@ class YtDlpRuntime(context: Context) {
     /** A yt-dlp run with [args]; call [prepare] first. */
     fun command(args: List<String>): ProcessBuilder {
         val qjs = File(libs, "libqjs.so").path
-        val script = if (File(appDir, "__main__.py").exists()) appDir else ytdlpFile
+        val dir = appDir(installedVersion())
+        val script = if (File(dir, "__main__.py").exists()) dir else ytdlpFile
         return python(listOf(script.path, "--js-runtimes", "quickjs:$qjs") + args)
+    }
+
+    companion object {
+        /** One lock for every instance: unpacking and updating touch shared folders. */
+        private val LOCK = Any()
     }
 
     /** The version of the yt-dlp in use, or null if it won't run. */

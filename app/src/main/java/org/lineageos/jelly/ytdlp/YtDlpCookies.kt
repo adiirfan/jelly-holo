@@ -37,3 +37,10 @@ fun writeCookies(file: File, pageUrl: String, cookieHeader: String?, private: Bo
     file.writeText((listOf("# Netscape HTTP Cookie File") + rows).joinToString("\n", postfix = "\n"))
     return true
 }
+
+/**
+ * The Cookie header to send to [url]: the browser's cookies for that address
+ * itself (not the page's), and none at all from a private tab.
+ */
+fun cookieHeaderFor(url: String, private: Boolean, lookup: (String) -> String?): String? =
+    if (private) null else lookup(url)?.takeIf { it.isNotBlank() }

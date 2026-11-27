@@ -60,4 +60,12 @@ class YtDlpCookiesTest {
         assertFalse(writeCookies(f, "https://www.youtube.com/", null, private = false))
         assertFalse(f.exists())
     }
+
+    @Test
+    fun cookie_header_is_the_one_for_the_address_itself_and_never_from_a_private_tab() {
+        val jar = mapOf("https://cdn.example.invalid/v.mp4" to "cdn=1", "https://www.example.invalid/watch" to "page=1")
+        assertEquals("cdn=1", cookieHeaderFor("https://cdn.example.invalid/v.mp4", private = false) { jar[it] })
+        assertEquals(null, cookieHeaderFor("https://cdn.example.invalid/v.mp4", private = true) { jar[it] })
+        assertEquals(null, cookieHeaderFor("https://other.example.invalid/x", private = false) { "" })
+    }
 }

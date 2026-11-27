@@ -37,6 +37,8 @@ fun fitSize(width: Int, height: Int, maxW: Int, maxH: Int): Pair<Int, Int> {
  */
 object Transcode {
     private const val TIMEOUT_US = 10_000L
+    /** No frame in or out for this long means the hardware has stuck. */
+    private const val STALL_NS = 30_000_000_000L
 
     class Cancelled : IOException("cancelled")
 
@@ -83,7 +85,12 @@ object Transcode {
 
     private fun openTrack(file: File, prefix: String): Pair<MediaExtractor, MediaFormat>? {
         val ex = MediaExtractor()
-        ex.setDataSource(file.path)
+        try {
+            ex.setDataSource(file.path)
+        } catch (t: Throwable) {
+            ex.release()
+            throw t
+        }
         for (i in 0 until ex.trackCount) {
             val f = ex.getTrackFormat(i)
             if (f.getString(MediaFormat.KEY_MIME)?.startsWith(prefix) == true) {
@@ -104,7 +111,9 @@ object Transcode {
         log: (String) -> Unit,
         lengthUs: Long,
     ): Boolean {
-        val (ex, inFormat) = openTrack(file, "video/") ?: throw IOException("no picture found")
+        val opened = runCatching { openTrack(file, "video/") }.getOrElse { sound?.first?.release(); throw it }
+            ?: run { sound?.first?.release(); throw IOException("no picture found") }
+        val (ex, inFormat) = opened
         var decoder: MediaCodec? = null
         var encoder: MediaCodec? = null
         var muxer: MediaMuxer? = null
@@ -186,11 +195,23 @@ object Transcode {
             var heldEos = false
             var copyNs = 0L
             var frames = 0
+            // The last frame came with the end mark: the encoder still needs its own
+            var eosPending = false
             val t0 = System.nanoTime()
+            var lastMoved = t0
             while (!encodeDone) {
                 if (cancelled()) throw Cancelled()
+                if (System.nanoTime() - lastMoved > STALL_NS) throw IOException("the converter stopped making progress")
                 // Nothing waits unless a whole round moved nothing
                 var moved = false
+                if (eosPending) {
+                    val k = encoder.dequeueInputBuffer(0)
+                    if (k >= 0) {
+                        encoder.queueInputBuffer(k, 0, 0, heldTime, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                        eosPending = false
+                        moved = true
+                    }
+                }
                 if (!inputDone) {
                     val i = decoder.dequeueInputBuffer(0)
                     if (i >= 0) {
@@ -235,18 +256,12 @@ object Transcode {
                         } else if (heldEos) {
                             encoder.queueInputBuffer(e, 0, 0, heldTime, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                         } else {
-                            encoder.queueInputBuffer(e, 0, 0, heldTime, 0)
+                            throw IOException("the decoder gave no readable picture")
                         }
                         decoder.releaseOutputBuffer(held, false)
                         held = -1
                         if (heldEos) {
-                            if (image != null) {
-                                // The last frame came with the end mark: end the encoder too
-                                var k: Int
-                                do { k = encoder.dequeueInputBuffer(TIMEOUT_US) } while (k < 0 && !cancelled())
-                                if (k < 0) throw Cancelled()
-                                encoder.queueInputBuffer(k, 0, 0, heldTime, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                            }
+                            if (image != null) eosPending = true
                             decodeDone = true
                         }
                     }
@@ -282,6 +297,7 @@ object Transcode {
                         break
                     }
                 }
+                if (moved) lastMoved = System.nanoTime()
             }
             if (!muxing) throw IOException("the encoder made nothing")
             copySound(Long.MAX_VALUE)

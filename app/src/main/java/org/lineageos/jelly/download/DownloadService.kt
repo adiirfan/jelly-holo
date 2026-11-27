@@ -39,6 +39,7 @@ import org.lineageos.jelly.ytdlp.YtDlpRuntime
 import org.lineageos.jelly.ytdlp.fileName
 import org.lineageos.jelly.ytdlp.problemOf
 import org.lineageos.jelly.ytdlp.runWithLimit
+import org.lineageos.jelly.ytdlp.cookieHeaderFor
 import org.lineageos.jelly.ytdlp.writeCookies
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -215,7 +216,7 @@ class DownloadService : Service() {
                     userAgent?.let { put("User-Agent", it) }
                     referer?.let { put("Referer", it) }
                     origin?.let { put("Origin", it) }
-                    cookies.getCookie(url)?.takeIf { it.isNotEmpty() }?.let { put("Cookie", it) }
+                    cookieHeaderFor(url, private, cookies::getCookie)?.let { put("Cookie", it) }
                 }
             },
             playable = CodecSupport::playable,
@@ -316,12 +317,14 @@ class DownloadService : Service() {
             // The video's length, for conversion progress: yt-dlp's, or a stream playlist's
             var length = y.duration ?: 0.0
             for ((format, file) in listOfNotNull(o.video?.let { it to video!! }, o.audio?.let { it to audio!! })) {
-                val ok = fetchFormat(id, job, y, format, file, cookieHeader, cookiesFile, before, o.size ?: -1, started, log) {
+                val ok = fetchFormat(id, job, y, format, file, cookiesFile, before, o.size ?: -1, started, log) {
                     if (length <= 0) length = it
                 }
                 if (!ok) return
                 before += file.length()
             }
+            // A streamed picture may bring its own sound in a second playlist
+            val sound = soundFile(audio, video)
             job.note = piecesProgress(id, job.name, -1, -1)
             nm.notify(id, job.note!!)
 
@@ -332,7 +335,7 @@ class DownloadService : Service() {
                 o.output == Output.AUDIO -> {
                     mime = if (job.name.endsWith(".webm")) "audio/webm" else "audio/mp4"
                     item = newItem(job.name, mime)
-                    copyInto(audio!!, item)
+                    copyInto(sound!!, item)
                 }
 
                 o.output == Output.WEBM -> {
@@ -340,7 +343,7 @@ class DownloadService : Service() {
                     item = newItem(job.name, mime)
                     how = "android"
                     val ok = contentResolver.openFileDescriptor(item, "rwt").use {
-                        Remux.toMp4(video!!, audio, it!!.fileDescriptor, log, MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM)
+                        Remux.toMp4(video!!, sound, it!!.fileDescriptor, log, MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM)
                     }
                     if (!ok) throw IOException(getString(R.string.download_stream_join_failed))
                 }
@@ -354,7 +357,7 @@ class DownloadService : Service() {
                     var shown = 0L
                     val ok = contentResolver.openFileDescriptor(item, "rwt").use { pfd ->
                         Transcode.toH264(
-                            video!!, audio, pfd!!.fileDescriptor, dir,
+                            video!!, sound, pfd!!.fileDescriptor, dir,
                             progress = { pct ->
                                 val now = SystemClock.elapsedRealtime()
                                 if (now - shown >= 700) {
@@ -375,7 +378,7 @@ class DownloadService : Service() {
                     }
                 }
 
-                audio == null && !looksFragmented(video!!) && !looksTs(video) -> {
+                sound == null && !looksFragmented(video!!) && !looksTs(video) -> {
                     // One ordinary file with everything in it
                     mime = "video/mp4"
                     item = newItem(job.name, mime)
@@ -385,7 +388,7 @@ class DownloadService : Service() {
                 else -> {
                     mime = "video/mp4"
                     item = newItem(job.name, mime)
-                    how = join(video!!, audio, item, log)
+                    how = join(video!!, sound, item, log)
                 }
             }
             contentResolver.update(item, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
@@ -433,7 +436,6 @@ class DownloadService : Service() {
         y: YtDlpJob,
         f: Format,
         file: File,
-        cookieHeader: String?,
         cookiesFile: File?,
         before: Long,
         total: Long,
@@ -450,9 +452,12 @@ class DownloadService : Service() {
             job.note = progress(id, job.name, done, total, speed)
             nm.notify(id, job.note!!)
         }
-        val headers = f.headers + listOfNotNull(cookieHeader?.let { "Cookie" to it })
         when {
             f.protocol == "https" || f.protocol == "http" -> {
+                // The file's own cookies: the page's may belong to another site
+                val headers = f.headers + listOfNotNull(
+                    cookieHeaderFor(f.url, y.private, CookieManager.getInstance()::getCookie)?.let { "Cookie" to it },
+                )
                 val d = ParallelDownload(f.url, headers, maxRequestBytes = MAX_REQUEST, log = log)
                 val info = d.probe()
                 return RandomAccessFile(file, "rw").use { raf ->
@@ -465,9 +470,7 @@ class DownloadService : Service() {
                 val cookies = CookieManager.getInstance()
                 val hls = HlsDownload(
                     headersFor = { url ->
-                        f.headers + listOfNotNull(
-                            if (y.private) null else cookies.getCookie(url)?.takeIf { it.isNotBlank() }?.let { "Cookie" to it }
-                        )
+                        f.headers + listOfNotNull(cookieHeaderFor(url, y.private, cookies::getCookie)?.let { "Cookie" to it })
                     },
                     playable = CodecSupport::playable,
                     log = log,
@@ -769,3 +772,7 @@ class DownloadService : Service() {
         }
     }
 }
+
+/** The sound to join: the one picked, or the one a picture's playlist brought along. */
+internal fun soundFile(picked: File?, video: File?): File? =
+    picked ?: video?.let { File(it.parentFile, it.name + "-sound") }?.takeIf { it.length() > 0 }
