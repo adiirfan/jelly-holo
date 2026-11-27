@@ -356,4 +356,5 @@
     <string name="ytdlp_unavailable">This video isn\'t available.</string>
     <string name="ytdlp_live">Live videos can\'t be saved.</string>
     <string name="ytdlp_failed">Couldn\'t get this video.</string>
+    <string name="download_converting">Converting… %1$d%%</string>
 </resources>

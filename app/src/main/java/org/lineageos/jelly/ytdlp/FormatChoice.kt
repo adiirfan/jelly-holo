@@ -31,7 +31,12 @@ private fun mimeOf(codec: String?) = codec?.takeIf { it.isNotEmpty() }?.let { Hl
  * "Sound only". Versions the phone plays well in MP4 come first; WebM only
  * when there's no MP4; conversion only when nothing plays well.
  */
-fun options(info: YtDlpInfo, playable: (String) -> Boolean): List<Option> {
+fun options(
+    info: YtDlpInfo,
+    /** Whether the phone's H.264 encoder takes a picture of this size, for conversion. */
+    encodable: (Int, Int) -> Boolean = { _, _ -> true },
+    playable: (String) -> Boolean,
+): List<Option> {
     val usable = info.formats.filter { it.url.isNotEmpty() && it.protocol != "mhtml" && (it.hasPicture || it.hasSound) }
     val pictures = usable.filter { it.hasPicture }
     val sounds = usable.filter { !it.hasPicture && it.hasSound }
@@ -89,7 +94,11 @@ fun options(info: YtDlpInfo, playable: (String) -> Boolean): List<Option> {
         list = rows(pictures.filter { isWebm(it) && mimeOf(it.vcodec)?.let(playable) == true }, webmSound, Output.WEBM)
     }
     if (list.isEmpty()) {
-        list = rows(pictures.filter { mimeOf(it.vcodec) != null }, mp4Sound ?: anySound, Output.CONVERT).take(1)
+        // The biggest size the encoder takes, so nothing needs shrinking
+        val convertible = pictures.filter { f ->
+            mimeOf(f.vcodec) != null && (f.width == null || f.height == null || encodable(f.width, f.height))
+        }
+        list = rows(convertible, mp4Sound ?: anySound, Output.CONVERT).take(1)
     }
     val soundOnly = (mp4Sound ?: anySound)?.let { Option(SOUND_ONLY, null, it, Output.AUDIO, size(listOf(it))) }
     return list + listOfNotNull(soundOnly)

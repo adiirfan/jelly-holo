@@ -334,7 +334,34 @@ class DownloadService : Service() {
                     if (!ok) throw IOException(getString(R.string.download_stream_join_failed))
                 }
 
-                o.output == Output.CONVERT -> throw IOException("converting isn't ready yet")
+                o.output == Output.CONVERT -> {
+                    mime = "video/mp4"
+                    item = newItem(job.name, mime)
+                    how = "converted"
+                    job.note = convertProgress(id, job.name, 0)
+                    nm.notify(id, job.note!!)
+                    var shown = 0L
+                    val ok = contentResolver.openFileDescriptor(item, "rwt").use { pfd ->
+                        Transcode.toH264(
+                            video!!, audio, pfd!!.fileDescriptor, dir,
+                            progress = { pct ->
+                                val now = SystemClock.elapsedRealtime()
+                                if (now - shown >= 700) {
+                                    shown = now
+                                    job.note = convertProgress(id, job.name, pct)
+                                    nm.notify(id, job.note!!)
+                                }
+                            },
+                            cancelled = { job.cancelled },
+                            log = log,
+                        )
+                    }
+                    if (!ok) {
+                        contentResolver.delete(item, null, null)
+                        item = null
+                        return
+                    }
+                }
 
                 audio == null && !looksFragmented(video!!) && !looksTs(video) -> {
                     // One ordinary file with everything in it
@@ -483,6 +510,23 @@ class DownloadService : Service() {
             put(MediaStore.Downloads.IS_PENDING, 1)
         },
     ) ?: throw IOException("couldn't create the file")
+
+    /** Progress of a conversion, in percent. */
+    private fun convertProgress(id: Int, name: String, percent: Int): Notification {
+        val cancel = PendingIntent.getService(
+            this, id,
+            Intent(this, DownloadService::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_ID, id),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        return base(name)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentText(getString(R.string.download_converting, percent))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setProgress(100, percent, false)
+            .addAction(0, getString(R.string.picker_cancel), cancel)
+            .build()
+    }
 
     /** Progress in pieces; done < 0 means the pieces are being joined. */
     private fun piecesProgress(id: Int, name: String, done: Int, total: Int): Notification {
