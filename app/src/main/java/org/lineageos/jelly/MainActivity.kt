@@ -94,6 +94,7 @@ import org.lineageos.jelly.download.CodecSupport
 import org.lineageos.jelly.download.Transcode
 import org.lineageos.jelly.ytdlp.Option
 import org.lineageos.jelly.ytdlp.Output
+import org.lineageos.jelly.ytdlp.Problem
 import org.lineageos.jelly.ytdlp.YtDlpFinder
 import org.lineageos.jelly.ytdlp.YtDlpInfo
 import org.lineageos.jelly.ytdlp.YtDlpJob
@@ -1024,12 +1025,52 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             if (isFinishing || isDestroyed) return@launch
             when (found) {
                 is YtDlpFinder.Found.Cancelled -> {}
-                is YtDlpFinder.Found.Failed ->
-                    Toast.makeText(this@MainActivity, found.problem.message, Toast.LENGTH_LONG).show()
+                is YtDlpFinder.Found.Failed -> {
+                    // Sites like Reddit want a sign-in for their page data, but
+                    // the video's own playlist (loaded by the page) is public
+                    if (found.problem == Problem.SIGN_IN && page == webView.url) {
+                        pageStreams { streams ->
+                            if (streams.isNotEmpty()) {
+                                saveStreams(streams, webView.title, page)
+                            } else {
+                                Toast.makeText(this@MainActivity, found.problem.message, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    } else {
+                        Toast.makeText(this@MainActivity, found.problem.message, Toast.LENGTH_LONG).show()
+                    }
+                }
 
                 is YtDlpFinder.Found.Ok -> showQualities(found.info, page, private)
             }
         }
+    }
+
+    /**
+     * Stream playlists the page loaded, plus any named in its elements'
+     * attributes (Reddit's player fetches its playlist out of the browser's
+     * sight, but carries the address on the page).
+     */
+    private fun pageStreams(done: (List<String>) -> Unit) {
+        val js = """(() => { const out = new Set();
+            const look = root => { for (const el of root.querySelectorAll('*')) {
+                for (const a of el.attributes) { const m = a.value.match(/^https?:\/\/[^\s"'<>]+\.m3u8([?#][^\s"'<>]*)?$/i); if (m) out.add(a.value); }
+                if (el.shadowRoot) look(el.shadowRoot); } };
+            look(document); return [...out].slice(0, 10); })()"""
+        webView.evaluateJavascript(js) { result ->
+            val found = runCatching {
+                val a = org.json.JSONArray(result)
+                (0 until a.length()).map { a.getString(it) }
+            }.getOrDefault(emptyList())
+            done((webView.streams() + found).distinct())
+        }
+    }
+
+    /** Saves the streamed video whose playlists the page loaded. */
+    private fun saveStreams(streams: List<String>, title: String?, page: String) {
+        val name = title.orEmpty().replace(Regex("""[\\/:*?"<>|]"""), " ").trim().take(80).ifEmpty { "video" }
+        DownloadService.startStream(this, streams, 0.0, name, webView.settings.userAgentString, page, incognito)
+        Toast.makeText(this, getString(R.string.download_started, "$name.mp4"), Toast.LENGTH_SHORT).show()
     }
 
     private fun showQualities(info: YtDlpInfo, page: String, private: Boolean) {

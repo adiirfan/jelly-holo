@@ -86,6 +86,9 @@ class WebViewExt @JvmOverloads constructor(
 
     fun noteStream(url: String) = synchronized(streamList) {
         if (url !in streamList) {
+            if (org.lineageos.jelly.adblock.AdBlock.logging) {
+                android.util.Log.d(org.lineageos.jelly.adblock.AdBlock.TAG, "stream seen: ${url.take(120)}")
+            }
             streamList.addLast(url)
             while (streamList.size > 20) streamList.removeFirst()
         }
