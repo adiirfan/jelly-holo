@@ -49,7 +49,13 @@ object Remux {
      * Writes [video] (and the separate [audio], if any) to [out] as an MP4.
      * False if Android can't read the pieces or can't put them in an MP4.
      */
-    fun toMp4(video: File, audio: File?, out: FileDescriptor, log: (String) -> Unit = {}): Boolean {
+    fun toMp4(
+        video: File,
+        audio: File?,
+        out: FileDescriptor,
+        log: (String) -> Unit = {},
+        format: Int = MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+    ): Boolean {
         val sources = mutableListOf<Source>()
         var muxer: MediaMuxer? = null
         var started = false
@@ -65,7 +71,7 @@ object Remux {
             }
             sound?.let { sources += it }
 
-            muxer = MediaMuxer(out, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            muxer = MediaMuxer(out, format)
             sources.forEach { it.muxerTrack = muxer.addTrack(it.format) }
             muxer.start()
             started = true

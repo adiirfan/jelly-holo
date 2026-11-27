@@ -30,6 +30,16 @@ import org.lineageos.jelly.R
 import org.lineageos.jelly.adblock.AdBlock
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
+import android.media.MediaMuxer
+import org.lineageos.jelly.ytdlp.Format
+import org.lineageos.jelly.ytdlp.Output
+import org.lineageos.jelly.ytdlp.YtDlpJob
+import org.lineageos.jelly.ytdlp.YtDlpRuntime
+import org.lineageos.jelly.ytdlp.fileName
+import org.lineageos.jelly.ytdlp.problemOf
+import org.lineageos.jelly.ytdlp.runWithLimit
+import org.lineageos.jelly.ytdlp.writeCookies
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -91,6 +101,18 @@ class DownloadService : Service() {
                 val referer = intent.getStringExtra(EXTRA_REFERER)
                 val duration = intent.getDoubleExtra(EXTRA_DURATION, -1.0)
                 thread(name = "Download$id") { runStream(id, job, streams, duration, userAgent, referer) }
+            }
+
+            ACTION_START_YTDLP -> {
+                val y = intent.getStringExtra(EXTRA_JOB)?.let { YtDlpJob.fromJson(it) } ?: return START_NOT_STICKY
+                val ext = (y.option.video ?: y.option.audio)?.let { if (y.option.output == Output.AUDIO) y.option.audio?.ext else it.ext }
+                val name = fileName(y.title, y.option.output, ext)
+                val id = nextId.incrementAndGet()
+                val job = Job(name)
+                running[id] = job
+                job.note = progress(id, name, 0, -1, 0)
+                startForeground(id, job.note!!, foregroundType())
+                thread(name = "Download$id") { runYtDlp(id, job, y) }
             }
 
             else -> stopIfIdle()
@@ -268,6 +290,185 @@ class DownloadService : Service() {
         }
     }
 
+    /**
+     * A video yt-dlp found: download the picture and sound the user picked
+     * with the app's own downloaders (or yt-dlp's, for kinds they don't
+     * handle), then join them into one file in Downloads.
+     */
+    private fun runYtDlp(id: Int, job: Job, y: YtDlpJob) {
+        var item: Uri? = null
+        val dir = File(cacheDir, "ytdlp-$id").apply { mkdirs() }
+        val log: (String) -> Unit = { if (AdBlock.logging) Log.d(AdBlock.TAG, "dl ${job.name}: $it") }
+        val cookieHeader = if (y.private) null else CookieManager.getInstance().getCookie(y.page)?.takeIf { it.isNotBlank() }
+        val cookiesFile = File(dir, "cookies.txt").takeIf { writeCookies(it, y.page, cookieHeader, y.private) }
+        val started = SystemClock.elapsedRealtime()
+        val o = y.option
+        try {
+            val video = o.video?.let { File(dir, "video") }
+            val audio = o.audio?.let { File(dir, "audio") }
+            var before = 0L
+            for ((format, file) in listOfNotNull(o.video?.let { it to video!! }, o.audio?.let { it to audio!! })) {
+                if (!fetchFormat(id, job, y, format, file, cookieHeader, cookiesFile, before, o.size ?: -1, started, log)) return
+                before += file.length()
+            }
+            job.note = piecesProgress(id, job.name, -1, -1)
+            nm.notify(id, job.note!!)
+
+            val joinStart = SystemClock.elapsedRealtime()
+            var how = "copy"
+            val mime: String
+            when {
+                o.output == Output.AUDIO -> {
+                    mime = if (job.name.endsWith(".webm")) "audio/webm" else "audio/mp4"
+                    item = newItem(job.name, mime)
+                    copyInto(audio!!, item)
+                }
+
+                o.output == Output.WEBM -> {
+                    mime = "video/webm"
+                    item = newItem(job.name, mime)
+                    how = "android"
+                    val ok = contentResolver.openFileDescriptor(item, "rwt").use {
+                        Remux.toMp4(video!!, audio, it!!.fileDescriptor, log, MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM)
+                    }
+                    if (!ok) throw IOException(getString(R.string.download_stream_join_failed))
+                }
+
+                o.output == Output.CONVERT -> throw IOException("converting isn't ready yet")
+
+                audio == null && !looksFragmented(video!!) && !looksTs(video) -> {
+                    // One ordinary file with everything in it
+                    mime = "video/mp4"
+                    item = newItem(job.name, mime)
+                    copyInto(video, item)
+                }
+
+                else -> {
+                    mime = "video/mp4"
+                    item = newItem(job.name, mime)
+                    how = join(video!!, audio, item, log)
+                }
+            }
+            contentResolver.update(item, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
+            val joinSecs = (SystemClock.elapsedRealtime() - joinStart) / 1000.0
+            val secs = (SystemClock.elapsedRealtime() - started) / 1000.0
+            Log.i(AdBlock.TAG, "downloaded with yt-dlp ${job.name} (${o.label}, ${o.output}): joined ($how) in $joinSecs s, $secs s")
+            finished(id, job.name, item, mime)
+        } catch (e: Exception) {
+            Log.w(AdBlock.TAG, "yt-dlp download failed: ${job.name}", e)
+            item?.let { runCatching { contentResolver.delete(it, null, null) } }
+            failed(id, job.name, getString(R.string.download_failed, e.message ?: e.javaClass.simpleName))
+        } finally {
+            dir.deleteRecursively()
+            ended(id)
+        }
+    }
+
+    /** Joins picture and sound into [item]: the Rust joiner when it reads both, else Android's. */
+    private fun join(video: File, audio: File?, item: Uri, log: (String) -> Unit): String {
+        val fragmented = looksFragmented(video) && (audio == null || looksFragmented(audio))
+        val ts = looksTs(video) && (audio == null || looksTs(audio))
+        if (fragmented || ts) {
+            val r = contentResolver.openFileDescriptor(item, "rwt").use {
+                NativeRemux.join(video.path, audio?.path, fragmented, it!!.fd)
+            }
+            log("rust join (fragmented $fragmented): $r")
+            if (r == NativeRemux.DONE) return "rust"
+        }
+        val ok = contentResolver.openFileDescriptor(item, "rwt").use { Remux.toMp4(video, audio, it!!.fileDescriptor, log) }
+        if (!ok) throw IOException(getString(R.string.download_stream_join_failed))
+        return "android"
+    }
+
+    private fun copyInto(file: File, item: Uri) {
+        contentResolver.openOutputStream(item, "wt").use { out -> file.inputStream().use { it.copyTo(out!!) } }
+    }
+
+    /**
+     * Downloads one format into [file]. Progress covers the whole job:
+     * [before] bytes came earlier, out of about [total]. False if cancelled.
+     */
+    private fun fetchFormat(
+        id: Int,
+        job: Job,
+        y: YtDlpJob,
+        f: Format,
+        file: File,
+        cookieHeader: String?,
+        cookiesFile: File?,
+        before: Long,
+        total: Long,
+        started: Long,
+        log: (String) -> Unit,
+    ): Boolean {
+        var lastShown = 0L
+        fun show(done: Long) {
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastShown < 700) return
+            lastShown = now
+            val speed = done * 1000 / (now - started).coerceAtLeast(1)
+            job.note = progress(id, job.name, done, total, speed)
+            nm.notify(id, job.note!!)
+        }
+        val headers = f.headers + listOfNotNull(cookieHeader?.let { "Cookie" to it })
+        when {
+            f.protocol == "https" || f.protocol == "http" -> {
+                val d = ParallelDownload(f.url, headers, maxRequestBytes = MAX_REQUEST, log = log)
+                val info = d.probe()
+                return RandomAccessFile(file, "rw").use { raf ->
+                    raf.setLength(0)
+                    d.download(info, raf.channel, progress = { show(before + it) }, cancelled = { job.cancelled })
+                }
+            }
+
+            f.protocol.startsWith("m3u8") -> {
+                val cookies = CookieManager.getInstance()
+                val hls = HlsDownload(
+                    headersFor = { url ->
+                        f.headers + listOfNotNull(
+                            if (y.private) null else cookies.getCookie(url)?.takeIf { it.isNotBlank() }?.let { "Cookie" to it }
+                        )
+                    },
+                    playable = CodecSupport::playable,
+                    log = log,
+                )
+                val plan = hls.choose(listOf(f.url), y.duration ?: -1.0)
+                val extra = plan.audio?.let { File(file.parentFile, file.name + "-sound") }
+                var shown = 0L
+                return hls.download(
+                    plan, file, extra,
+                    progress = { done, all ->
+                        val now = SystemClock.elapsedRealtime()
+                        if (now - shown >= 700) {
+                            shown = now
+                            job.note = piecesProgress(id, job.name, done, all)
+                            nm.notify(id, job.note!!)
+                        }
+                    },
+                    cancelled = { job.cancelled },
+                )
+            }
+
+            else -> {
+                // A kind of download only yt-dlp knows: let it fetch this one format
+                val runtime = YtDlpRuntime(this)
+                if (!runtime.prepare()) throw IOException(getString(R.string.ytdlp_failed))
+                val args = listOf("-f", f.id, "-o", file.path, "--no-part", "--no-playlist", "--no-warnings") +
+                    (cookiesFile?.let { listOf("--cookies", it.path) } ?: emptyList()) + y.page
+                val r = runWithLimit(
+                    runtime.command(args), Long.MAX_VALUE, { job.cancelled },
+                    stallMs = 60_000, growing = { file.length().also { show(before + it) } },
+                )
+                if (r.cancelled) return false
+                if (r.code != 0) {
+                    log("yt-dlp download failed (${r.code}, timed out ${r.timedOut}): ${r.err.takeLast(500)}")
+                    throw IOException(getString(problemOf(r.err).message))
+                }
+                return true
+            }
+        }
+    }
+
     private fun refusalText(reason: HlsDownload.Reason) = when (reason) {
         HlsDownload.Reason.NOT_FOUND -> R.string.download_stream_not_found
         HlsDownload.Reason.LIVE -> R.string.download_stream_live
@@ -400,6 +601,11 @@ class DownloadService : Service() {
         private const val ACTION_START = "start"
         private const val ACTION_CANCEL = "cancel"
         private const val ACTION_START_STREAM = "start_stream"
+        private const val ACTION_START_YTDLP = "start_ytdlp"
+        private const val EXTRA_JOB = "job"
+
+        /** YouTube refuses or slows down bigger single requests. */
+        private const val MAX_REQUEST = 10L shl 20
         private const val EXTRA_STREAMS = "streams"
         private const val EXTRA_DURATION = "duration"
         private const val EXTRA_ID = "id"
@@ -431,6 +637,29 @@ class DownloadService : Service() {
                 .putExtra(EXTRA_REFERER, referer)
             ContextCompat.startForegroundService(context, intent)
         }
+
+        /** Saves the video and sound the user picked from yt-dlp's list. */
+        fun startYtDlp(context: Context, job: YtDlpJob) {
+            val intent = Intent(context, DownloadService::class.java)
+                .setAction(ACTION_START_YTDLP)
+                .putExtra(EXTRA_JOB, job.toJson())
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        /** True for an MP4 that comes in fragments (moof boxes), as streams and YouTube send. */
+        fun looksFragmented(file: File): Boolean = runCatching {
+            val head = ByteArray(minOf(file.length(), 2L shl 20).toInt())
+            RandomAccessFile(file, "r").use { it.readFully(head) }
+            head.size >= 8 && String(head, 4, 4, Charsets.ISO_8859_1) == "ftyp" &&
+                String(head, Charsets.ISO_8859_1).contains("moof")
+        }.getOrDefault(false)
+
+        /** True for MPEG-TS: a sync byte every 188 bytes. */
+        fun looksTs(file: File): Boolean = runCatching {
+            val head = ByteArray(minOf(file.length(), 188L * 3).toInt())
+            RandomAccessFile(file, "r").use { it.readFully(head) }
+            head.size >= 188 * 2 && head[0] == 0x47.toByte() && head[188] == 0x47.toByte()
+        }.getOrDefault(false)
 
         /** Saves a streamed video; [streams] are the playlists its page loaded, oldest first. */
         fun startStream(
