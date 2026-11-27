@@ -48,6 +48,7 @@ import kotlin.concurrent.thread
 import kotlinx.coroutines.runBlocking
 import org.lineageos.jelly.database.DownloadDatabase
 import org.lineageos.jelly.downloads.DownloadRecorder
+import org.lineageos.jelly.downloads.DownloadsActivity
 import org.lineageos.jelly.model.DownloadKind
 
 /**
@@ -88,6 +89,11 @@ class DownloadService : Service() {
         createChannel()
         when (intent?.action) {
             ACTION_CANCEL -> running[intent.getIntExtra(EXTRA_ID, -1)]?.cancelled = true
+
+            ACTION_CANCEL_RECORD -> {
+                val record = intent.getLongExtra(EXTRA_RECORD, -1)
+                running.values.firstOrNull { it.record == record }?.cancelled = true
+            }
 
             ACTION_START -> {
                 val url = intent.getStringExtra(EXTRA_URL) ?: return START_NOT_STICKY
@@ -618,6 +624,15 @@ class DownloadService : Service() {
         }
     }
 
+    /** Tapping a running download's note opens the Downloads page at its row. */
+    private fun showPage(id: Int): PendingIntent = PendingIntent.getActivity(
+        this, id,
+        Intent(this, DownloadsActivity::class.java)
+            .putExtra(DownloadsActivity.EXTRA_SHOW_ID, running[id]?.record ?: -1L)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
     private fun base(name: String) = NotificationCompat.Builder(this, CHANNEL)
         .setContentTitle(name)
         .setColor(ContextCompat.getColor(this, R.color.holo_blue))
@@ -641,6 +656,7 @@ class DownloadService : Service() {
         }
         return base(name)
             .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentIntent(showPage(id))
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -735,6 +751,8 @@ class DownloadService : Service() {
         private const val OLD_CHANNEL = "downloads"
         private const val ACTION_START = "start"
         private const val ACTION_CANCEL = "cancel"
+        private const val ACTION_CANCEL_RECORD = "cancel_record"
+        private const val EXTRA_RECORD = "record"
         private const val ACTION_START_STREAM = "start_stream"
         private const val ACTION_START_YTDLP = "start_ytdlp"
         private const val EXTRA_JOB = "job"
@@ -778,6 +796,13 @@ class DownloadService : Service() {
         }
 
         /** Saves the video and sound the user picked from yt-dlp's list. */
+        /** Stops the running download shown as row [record] on the Downloads page. */
+        fun cancelRecord(context: Context, record: Long) {
+            context.startService(
+                Intent(context, DownloadService::class.java).setAction(ACTION_CANCEL_RECORD).putExtra(EXTRA_RECORD, record)
+            )
+        }
+
         fun startYtDlp(context: Context, job: YtDlpJob) {
             val intent = Intent(context, DownloadService::class.java)
                 .setAction(ACTION_START_YTDLP)

@@ -84,6 +84,11 @@
             android:theme="@style/Theme.Jelly.NoActionBar" />
 
         <activity
+            android:name=".downloads.DownloadsActivity"
+            android:label="@string/downloads_title"
+            android:theme="@style/Theme.Jelly.NoActionBar" />
+
+        <activity
             android:name=".history.HistoryActivity"
             android:label="@string/history_title"
             android:theme="@style/Theme.Jelly.NoActionBar" />

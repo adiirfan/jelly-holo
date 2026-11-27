@@ -133,6 +133,7 @@ import java.io.IOException
 import kotlin.reflect.cast
 import org.lineageos.jelly.database.DownloadDatabase
 import org.lineageos.jelly.downloads.DownloadRecorder
+import org.lineageos.jelly.downloads.DownloadsActivity
 
 class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     // View model
@@ -341,7 +342,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                     )
                 )
 
-                MenuDialog.Option.DOWNLOADS -> startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS))
+                MenuDialog.Option.DOWNLOADS -> startActivity(Intent(this, DownloadsActivity::class.java))
                 MenuDialog.Option.DOWNLOAD_VIDEO -> downloadWithYtDlp(webView.url)
                 MenuDialog.Option.ADD_TO_HOME_SCREEN -> addShortcut()
                 MenuDialog.Option.PRINT -> {

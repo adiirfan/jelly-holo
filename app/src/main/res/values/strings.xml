@@ -296,6 +296,18 @@
     <string name="download_channel">Downloads</string>
     <string name="download_starting">Starting…</string>
     <string name="download_progress">%1$s of %2$s · %3$s/s</string>
+    <!-- Downloads page -->
+    <string name="downloads_title">Downloads</string>
+    <string name="downloads_empty">Nothing downloaded yet. Files, videos and torrents you download show up here.</string>
+    <string name="downloads_active">Active</string>
+    <string name="downloads_finished">Finished</string>
+    <string name="downloads_cancel">Cancel</string>
+    <string name="downloads_more">More options</string>
+    <string name="downloads_open">Open</string>
+    <string name="downloads_share">Share</string>
+    <string name="downloads_delete_file">Delete file</string>
+    <string name="downloads_remove">Remove from list</string>
+    <string name="downloads_no_app">No app on this phone can open this file</string>
     <string name="download_done">Download complete. Tap to open.</string>
     <string name="download_failed">Couldn\'t download: %1$s</string>
     <string name="download_pieces">%1$d of %2$d pieces</string>
