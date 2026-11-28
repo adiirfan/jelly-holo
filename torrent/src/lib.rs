@@ -24,6 +24,10 @@ use serde::Serialize;
 
 #[cfg(target_os = "android")]
 mod jni;
+mod safe_names;
+
+pub use safe_names::safe_name;
+use librqbit::storage::StorageFactoryExt;
 
 /// How the engine runs.
 #[derive(Debug, Clone)]
@@ -59,6 +63,8 @@ pub struct Added {
 #[derive(Debug, Clone, Serialize)]
 pub struct FileStat {
     pub name: String,
+    /// Where it is on disk, from the download folder (names Android refuses are swapped for look-alikes).
+    pub path: String,
     pub size: u64,
     pub done: u64,
     pub selected: bool,
@@ -85,6 +91,7 @@ pub struct Stat {
 pub struct Engine {
     rt: tokio::runtime::Runtime,
     session: Arc<Session>,
+    folder: PathBuf,
 }
 
 /// How long choosing files waits for a new torrent's check of the disk.
@@ -124,10 +131,12 @@ impl Engine {
                 ..Default::default()
             }),
             ratelimits: LimitsConfig { upload_bps: limit(cfg.up_limit), download_bps: limit(cfg.down_limit) },
+            // Android refuses some characters torrent names often have
+            default_storage_factory: Some(safe_names::SafeStorageFactory { root: cfg.folder.clone() }.boxed()),
             ..Default::default()
         };
         let session = rt.block_on(Session::new_with_opts(cfg.folder.clone(), opts))?;
-        Ok(Engine { rt, session })
+        Ok(Engine { rt, session, folder: cfg.folder })
     }
 
     /// The port people can reach this engine on, once listening.
@@ -224,7 +233,7 @@ impl Engine {
     }
 
     pub fn stats(&self) -> Vec<Stat> {
-        let mut v = self.session.with_torrents(|it| it.map(|(id, h)| stat(id, h)).collect::<Vec<_>>());
+        let mut v = self.session.with_torrents(|it| it.map(|(id, h)| stat(&self.folder, id, h)).collect::<Vec<_>>());
         v.sort_by_key(|s| s.id);
         v
     }
@@ -245,7 +254,7 @@ fn name_of(h: &ManagedTorrent) -> String {
     h.name().unwrap_or_else(|| h.info_hash().as_string())
 }
 
-fn stat(id: usize, h: &ManagedTorrent) -> Stat {
+fn stat(root: &Path, id: usize, h: &ManagedTorrent) -> Stat {
     let st = h.stats();
     let live = st.live.as_ref();
     let only = h.only_files().map(|v| v.into_iter().collect::<HashSet<_>>());
@@ -256,6 +265,10 @@ fn stat(id: usize, h: &ManagedTorrent) -> Stat {
                 .enumerate()
                 .map(|(i, f)| FileStat {
                     name: f.relative_filename.to_string_lossy().into_owned(),
+                    path: safe_names::on_disk(root, &safe_names::folder_name(m), &f.relative_filename)
+                        .strip_prefix(root)
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
                     size: f.len,
                     done: st.file_progress.get(i).copied().unwrap_or(0),
                     selected: only.as_ref().is_none_or(|o| o.contains(&i)),

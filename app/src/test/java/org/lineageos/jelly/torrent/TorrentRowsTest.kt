@@ -32,6 +32,14 @@ class TorrentRowsTest {
     }
 
     @Test
+    fun each_file_keeps_where_the_engine_saved_it() {
+        val json = """[{"id":1,"info_hash":"ab","name":"Part 1: Start","state":"live","done":0,"total":2,
+            "uploaded":0,"down_bps":0,"up_bps":0,"peers":0,"finished":false,"error":null,
+            "files":[{"name":"01:a.webp","path":"Part 1： Start/01：a.webp","size":2,"done":0,"selected":true}]}]"""
+        assertEquals("Part 1： Start/01：a.webp", parseStats(json).single().files.single().path)
+    }
+
+    @Test
     fun an_engine_error_parses_as_no_torrents() {
         assertEquals(emptyList<TorrentStat>(), parseStats("""{"error":"torrents are off"}"""))
     }

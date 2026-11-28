@@ -183,3 +183,52 @@ fn engine_stop_ends_a_magnet_still_being_looked_up() {
     let failed = rx.recv_timeout(Duration::from_secs(5)).expect("the lookup kept going after the engine stopped");
     assert!(failed, "a stopped engine still added the torrent");
 }
+
+#[test]
+fn engine_saves_names_android_refuses_under_safe_look_alikes() {
+    // Android's shared storage refuses names with : * ? " < > | \ ("Operation not permitted").
+    // Torrent names often have them: the engine writes look-alikes instead.
+    let tmp = tempfile::tempdir().unwrap();
+    let share = tmp.path().join("share");
+    let bad_dir = "Diary ~Record (1): M-chan?";
+    let bad_file = "01:a*b.webp";
+    let data = make_file(&share.join(bad_dir), bad_file, 600_000);
+    // Two files, so the torrent is a folder (a single file is saved without one)
+    let other = make_file(&share.join(bad_dir), "02 <end>.txt", 300_000);
+    let torrent = jellytorrent::create_torrent_for(&share.join(bad_dir)).unwrap();
+    // The seeder keeps its copy where the engine looks for it: under the safe names
+    let safe_dir = "Diary ~Record (1)： M-chan？";
+    let safe_file = "01：a＊b.webp";
+    std::fs::create_dir_all(share.join(safe_dir)).unwrap();
+    std::fs::rename(share.join(bad_dir).join(bad_file), share.join(safe_dir).join(safe_file)).unwrap();
+    std::fs::rename(share.join(bad_dir).join("02 <end>.txt"), share.join(safe_dir).join("02 ＜end＞.txt")).unwrap();
+    let seeder = Engine::start(config(&share, &tmp.path().join("seed-state"))).unwrap();
+    let added = seeder.add_bytes(&torrent).unwrap();
+    wait(&seeder, added.id, Duration::from_secs(20), |s| s.finished).expect("seeder never found its file");
+
+    let down = tmp.path().join("down");
+    let b = Engine::start(config(&down, &tmp.path().join("down-state"))).unwrap();
+    let got = b.add_bytes_with_peer(&torrent, ("127.0.0.1", seeder.listen_port().unwrap())).unwrap();
+    let s = wait(&b, got.id, Duration::from_secs(30), |s| s.finished).expect("download never finished");
+    assert_eq!(std::fs::read(down.join(safe_dir).join(safe_file)).unwrap(), data);
+    assert_eq!(std::fs::read(down.join(safe_dir).join("02 ＜end＞.txt")).unwrap(), other);
+    // The page finds the file by the path the engine reports
+    let paths: Vec<_> = s.files.iter().map(|f| f.path.clone()).collect();
+    assert!(paths.contains(&format!("{safe_dir}/{safe_file}")), "{paths:?}");
+    for entry in walk(&down) {
+        let name = entry.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(!name.contains([':', '*', '?', '"', '<', '>', '|', '\\']), "unsafe name on disk: {name}");
+    }
+}
+
+fn walk(dir: &Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(dir).unwrap().flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            out.extend(walk(&p));
+        }
+        out.push(p);
+    }
+    out
+}

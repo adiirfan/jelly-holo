@@ -10,7 +10,14 @@ import org.json.JSONObject
 import org.lineageos.jelly.model.DownloadItem
 import org.lineageos.jelly.model.DownloadState
 
-data class TorrentFile(val name: String, val size: Long, val done: Long, val selected: Boolean)
+data class TorrentFile(
+    val name: String,
+    val size: Long,
+    val done: Long,
+    val selected: Boolean,
+    /** Where it is on disk from the download folder; names Android refuses are swapped for look-alikes. */
+    val path: String = "",
+)
 
 /** One torrent as the engine reports it (see `Stat` in torrent/src/lib.rs). */
 data class TorrentStat(
@@ -52,7 +59,10 @@ fun parseStats(json: String): List<TorrentStat> {
             error = if (o.isNull("error")) null else o.getString("error"),
             files = (0 until files.length()).map { j ->
                 val f = files.getJSONObject(j)
-                TorrentFile(f.getString("name"), f.getLong("size"), f.getLong("done"), f.getBoolean("selected"))
+                TorrentFile(
+                    f.getString("name"), f.getLong("size"), f.getLong("done"), f.getBoolean("selected"),
+                    f.optString("path"),
+                )
             },
         )
     }

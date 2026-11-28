@@ -434,7 +434,8 @@ class TorrentService : Service() {
     private fun scan(s: TorrentStat) {
         val folder = saveFolder()
         val paths = s.files.filter { it.selected }.map { f ->
-            if (s.files.size == 1) File(folder, f.name) else File(File(folder, s.name), f.name)
+            // The engine says where it saved each file (its names can differ from the torrent's)
+            File(folder, f.path.ifEmpty { if (s.files.size == 1) f.name else "${s.name}/${f.name}" })
         }.filter { it.exists() }.map { it.path }
         if (paths.isEmpty()) return
         MediaScannerConnection.scanFile(this, paths.toTypedArray(), null) { _, uri ->
