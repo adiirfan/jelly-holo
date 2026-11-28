@@ -5,6 +5,8 @@
 
 package org.lineageos.jelly.webview
 
+import android.os.Looper
+import android.os.Handler
 import android.content.ActivityNotFoundException
 import android.graphics.Bitmap
 import android.net.Uri
@@ -137,6 +139,13 @@ internal class ChromeClient(
         activity.onHideCustomView()
     }
 
+    /** Pop-ups are stopped with ad blocking, except on sites the user allowed. */
+    private fun popupsBlockedOn(opener: String?): Boolean {
+        if (!sharedPreferencesExt.adBlockEnabled) return false
+        val host = opener?.let { runCatching { Uri.parse(it).host }.getOrNull() } ?: return true
+        return host !in sharedPreferencesExt.adBlockAllowedHosts
+    }
+
     override fun onCreateWindow(
         view: WebView, isDialog: Boolean,
         isUserGesture: Boolean, resultMsg: Message
@@ -148,6 +157,16 @@ internal class ChromeClient(
         val transport = WebView.WebViewTransport::class.cast(resultMsg.obj)
         val tempWebView = WebView(view.context)
         val opener = view.url
+        // The link that was tapped, if any: a new tab to where it points is a real one
+        val hit = view.hitTestResult
+        var tappedLink: String? = if (hit.type == WebView.HitTestResult.SRC_ANCHOR_TYPE) hit.extra else null
+        if (hit.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+            val answer = Handler(Looper.getMainLooper()) { m ->
+                tappedLink = m.data.getString("url")
+                true
+            }.obtainMessage()
+            view.requestFocusNodeHref(answer)
+        }
 
         tempWebView.webViewClient = object : WebViewClient() {
             private var done = false
@@ -159,6 +178,11 @@ internal class ChromeClient(
                 // New tabs that pages open on ad networks ("pop-unders")
                 if (AdBlock.stopsJump(sharedPreferencesExt, url, opener)) {
                     activity.onJumpStopped(url, newTab = true)
+                    return
+                }
+                // A tap anywhere that opens another site in a new tab: a pop-up ad
+                if (popupsBlockedOn(opener) && !Popups.allow(opener, url, tappedLink)) {
+                    activity.onPopupBlocked(url)
                     return
                 }
                 openInNewTab(activity, url, incognito)

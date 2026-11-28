@@ -739,6 +739,13 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         if (picking) showPicked(label)
     }
 
+    override fun onPopupBlocked(url: String) {
+        val host = Uri.parse(url).host ?: url
+        Snackbar.make(constraintLayout, getString(R.string.popup_blocked, host), Snackbar.LENGTH_LONG)
+            .setAction(R.string.popup_open) { openInNewTab(this, url, incognito) }
+            .show()
+    }
+
     override fun onJumpStopped(url: String, newTab: Boolean) {
         val host = Uri.parse(url).host ?: url
         Snackbar.make(

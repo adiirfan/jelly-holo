@@ -49,6 +49,9 @@ abstract class WebViewExtActivity : AppCompatActivity() {
     /** An ad redirect to `url` was stopped, in this tab or as a new one. */
     open fun onJumpStopped(url: String, newTab: Boolean) {}
 
+    /** A page tried to open another site in a new tab without a link being tapped. */
+    open fun onPopupBlocked(url: String) {}
+
     /** The page reported on the video being watched. */
     open fun onVideoState(state: org.lineageos.jelly.video.VideoState) {}
 
