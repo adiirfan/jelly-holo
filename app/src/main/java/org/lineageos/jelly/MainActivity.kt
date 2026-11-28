@@ -125,6 +125,7 @@ import org.lineageos.jelly.utils.UrlUtils
 import org.lineageos.jelly.viewmodels.FavoriteViewModel
 import org.lineageos.jelly.viewmodels.HistoryViewModel
 import org.lineageos.jelly.viewmodels.SuggestionProviderViewModel
+import org.lineageos.jelly.webview.PrivateProfile
 import org.lineageos.jelly.webview.WebViewExt
 import org.lineageos.jelly.webview.WebViewExtActivity
 import java.io.File
@@ -339,6 +340,23 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         lifecycleScope.launch(Dispatchers.IO) { TorrentService.resumeIfNeeded(applicationContext) }
 
         urlBarLayout.isIncognito = incognito
+        if (incognito) {
+            // Purple behind the status and navigation bars too, with light icons on it
+            window.decorView.setBackgroundColor(getColor(R.color.holo_private_bar))
+            WindowCompat.getInsetsController(window, window.decorView).apply {
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
+            }
+            if (savedInstanceState == null) {
+                Snackbar.make(
+                    constraintLayout,
+                    if (PrivateProfile.supported) R.string.private_tab_note else R.string.private_tab_note_old,
+                    Snackbar.LENGTH_LONG,
+                ).apply {
+                    view.findViewById<TextView>(com.google.android.material.R.id.snackbar_text)?.maxLines = 4
+                }.show()
+            }
+        }
 
         menuDialog = MenuDialog(this, desktopMode) { option: MenuDialog.Option ->
             when (option) {
@@ -454,8 +472,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             menuDialog.showAsDropdownMenu(urlBarLayout, sharedPreferencesExt.reachModeEnabled)
         }
 
-        CookieManager.getInstance()
-            .setAcceptCookie(!incognito && sharedPreferencesExt.cookiesEnabled)
+        applyCookieRule()
 
         try {
             val httpCacheDir = File(cacheDir, "suggestion_responses")
@@ -542,6 +559,30 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         super.onStop()
     }
 
+    override fun onDestroy() {
+        if (incognito && backgroundShortcutId == null && ::webView.isInitialized) {
+            // Pages this private tab saw leave the cache with it
+            if (!isChangingConfigurations) webView.clearCache(true)
+            webView.destroy()
+            PrivateProfile.detach(reopening = isChangingConfigurations)
+        }
+        super.onDestroy()
+    }
+
+    /**
+     * Cookies on or off as the setting says. Private tabs have their own jar when the
+     * WebView allows it; otherwise cookies are off for every tab while a private one shows.
+     */
+    private fun applyCookieRule() {
+        val on = sharedPreferencesExt.cookiesEnabled
+        if (incognito && PrivateProfile.supported) {
+            CookieManager.getInstance().setAcceptCookie(on)
+            PrivateProfile.cookies()?.setAcceptCookie(on)
+        } else {
+            CookieManager.getInstance().setAcceptCookie(!incognito && on)
+        }
+    }
+
     public override fun onPause() {
         if (picking) stopPicker()
         // The tab screen shows this page as it was left
@@ -561,8 +602,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         urlBarLayout.tabCount = tabTasks(this).size
         // Other tabs may have switched Dark pages while this one was away
         if (::webView.isInitialized) webView.applyDarkPages(sharedPreferencesExt.darkPages)
-        CookieManager.getInstance()
-            .setAcceptCookie(!incognito && sharedPreferencesExt.cookiesEnabled)
+        applyCookieRule()
         if (sharedPreferencesExt.lookLockEnabled) {
             window.setFlags(
                 WindowManager.LayoutParams.FLAG_SECURE,
@@ -592,6 +632,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         if (backgroundShortcutId == null) {
             if (::webView.isInitialized) return
             webView = WebViewExt.newInstance(this)
+            // Private tabs keep their own cookies and storage, wiped when the last one closes
+            if (incognito) PrivateProfile.attach(webView)
             onWebViewResolved()
         } else {
             Intent(this, BackgroundShortcutService::class.java).let {

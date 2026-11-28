@@ -14,6 +14,10 @@
     <color name="holo_background">#F3F3F3</color>
     <color name="holo_surface">#FAFAFA</color>
     <color name="holo_toolbar">#E6E6E6</color>
+    <!-- Private tabs: the same deep purple in every look, so they're never mistaken for normal ones -->
+    <color name="holo_private_bar">#3A1F4D</color>
+    <color name="holo_private_box">#26142F</color>
+    <color name="holo_private_edge">#AA66CC</color>
     <color name="holo_omnibox">#FFFFFF</color>
     <color name="holo_omnibox_border">#BDBDBD</color>
     <color name="holo_divider">#E0E0E0</color>

@@ -152,7 +152,8 @@ class WebViewExt @JvmOverloads constructor(
         settings.setSupportMultipleWindows(true)
         settings.builtInZoomControls = true
         settings.displayZoomControls = false
-        settings.domStorageEnabled = !isIncognito
+        // Private tabs may keep site storage only in their own wiped-on-close storage
+        settings.domStorageEnabled = !isIncognito || PrivateProfile.supported
         setOnLongClickListener(object : OnLongClickListener {
             override fun onLongClick(v: View): Boolean {
                 val result = hitTestResult

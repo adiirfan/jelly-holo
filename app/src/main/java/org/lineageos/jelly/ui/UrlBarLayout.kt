@@ -5,6 +5,9 @@
 
 package org.lineageos.jelly.ui
 
+import com.google.android.material.card.MaterialCardView
+import android.graphics.Color
+import android.content.res.ColorStateList
 import android.annotation.SuppressLint
 import android.os.Looper
 import androidx.core.content.ContextCompat
@@ -82,7 +85,27 @@ class UrlBarLayout @JvmOverloads constructor(
             field = value
 
             incognitoIcon.isVisible = value
+            if (value) paintPrivate()
         }
+
+    /** Private tabs get a deep purple bar with white text, in the Light and Black looks alike. */
+    private fun paintPrivate() {
+        val bar = ContextCompat.getColor(context, R.color.holo_private_bar)
+        val ink = ColorStateList.valueOf(Color.WHITE)
+        (getChildAt(0) ?: this).setBackgroundColor(bar)
+        findViewById<MaterialCardView>(R.id.urlCardView)?.apply {
+            setCardBackgroundColor(ContextCompat.getColor(context, R.color.holo_private_box))
+            strokeColor = ContextCompat.getColor(context, R.color.holo_private_edge)
+        }
+        autoCompleteTextView.setTextColor(Color.WHITE)
+        autoCompleteTextView.setHintTextColor(0xB3FFFFFF.toInt())
+        incognitoIcon.imageTintList = ink
+        moreButton.imageTintList = ink
+        tabCountText.setTextColor(Color.WHITE)
+        // A tint would fill the box; redraw just its outline in white
+        (tabCountText.background?.mutate() as? android.graphics.drawable.GradientDrawable)
+            ?.setStroke((2 * resources.displayMetrics.density).toInt(), Color.WHITE)
+    }
 
     var loadingProgress: Int = 100
         set(value) {

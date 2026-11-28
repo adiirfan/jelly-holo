@@ -5,13 +5,14 @@
 
 package org.lineageos.jelly.tabs
 
+import org.lineageos.jelly.utils.IntentUtils
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
 import org.lineageos.jelly.MainActivity
 
 /** One open tab: an entry of this app in Android's recent apps. */
-class Tab(val task: ActivityManager.AppTask, val id: Int, val title: String?)
+class Tab(val task: ActivityManager.AppTask, val id: Int, val title: String?, val private: Boolean = false)
 
 /** This app's tabs, oldest first (the newest is drawn in front). */
 fun tabTasks(context: Context): List<Tab> {
@@ -26,6 +27,7 @@ fun tabTasks(context: Context): List<Tab> {
         val id = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) info.taskId else info.persistentId
         @Suppress("DEPRECATION")
         val label = info.taskDescription?.label?.toString()
-        Tab(task, id, label)
+        val private = runCatching { info.baseIntent.getBooleanExtra(IntentUtils.EXTRA_INCOGNITO, false) }.getOrDefault(false)
+        Tab(task, id, label, private)
     }.asReversed()
 }

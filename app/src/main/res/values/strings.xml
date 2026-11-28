@@ -302,6 +302,9 @@
     <string name="pref_downloads_category">Downloads</string>
     <string name="pref_video_category">Video</string>
     <string name="pref_about_category">About</string>
+    <string name="private_tab_note">Private tab. Sites you sign into here stay apart from your normal tabs, and everything is wiped when you close the last private tab.</string>
+    <string name="private_tab_note_old">Private tab. Cookies are off here, so sites can\'t keep you signed in. Update Android System WebView to sign in privately.</string>
+    <string name="tab_private_label">Private</string>
     <string name="pref_version_title">Version</string>
     <string name="pref_licenses_title">Open-source licences</string>
     <string name="pref_licenses_summary">Jelly Holo is Apache 2.0, built on LineageOS Jelly. See every part it includes.</string>

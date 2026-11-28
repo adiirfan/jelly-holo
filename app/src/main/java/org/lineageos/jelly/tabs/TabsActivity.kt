@@ -99,6 +99,9 @@ class TabsActivity : AppCompatActivity() {
             val title: TextView = view.findViewById(R.id.tabTitle)
             val close: ImageButton = view.findViewById(R.id.tabClose)
             val shot: ImageView = view.findViewById(R.id.tabShot)
+            val strip: View = view.findViewById(R.id.tabStrip)
+            val titleColor = title.currentTextColor
+            val closeTint = close.imageTintList
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(
@@ -111,7 +114,17 @@ class TabsActivity : AppCompatActivity() {
             val tab = tabs[position]
             val ctx = holder.itemView.context
             val title = tab.title?.takeIf { it.isNotBlank() } ?: ctx.getString(R.string.tab_untitled)
-            holder.title.text = title
+            // Private tabs: purple strip and a "Private ·" label, never mistaken for normal ones
+            holder.title.text = if (tab.private) "${ctx.getString(R.string.tab_private_label)} · $title" else title
+            holder.strip.setBackgroundColor(
+                ctx.getColor(if (tab.private) R.color.holo_private_bar else R.color.holo_tab_title)
+            )
+            holder.title.setTextColor(if (tab.private) android.graphics.Color.WHITE else holder.titleColor)
+            holder.close.imageTintList = if (tab.private) {
+                android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            } else {
+                holder.closeTint
+            }
             val icon = TabSnapshots.loadIcon(ctx, tab.id)
             holder.icon.setImageBitmap(icon)
             holder.icon.visibility = if (icon != null) View.VISIBLE else View.GONE
