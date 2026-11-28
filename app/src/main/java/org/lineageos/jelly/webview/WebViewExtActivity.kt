@@ -49,8 +49,13 @@ abstract class WebViewExtActivity : AppCompatActivity() {
     /** An ad redirect to `url` was stopped, in this tab or as a new one. */
     open fun onJumpStopped(url: String, newTab: Boolean) {}
 
-    /** A page tried to open another site in a new tab without a link being tapped. */
-    open fun onPopupBlocked(url: String) {}
+    /**
+     * A page tried to open another site in a new window without a link being tapped. [window]
+     * is that window, stopped: show it if the user asks, otherwise destroy it.
+     */
+    open fun onPopupBlocked(url: String, window: android.webkit.WebView) {
+        window.destroy()
+    }
 
     /** Shows a window a page opened over that page, still connected to it. */
     open fun showPopup(window: android.webkit.WebView) {}

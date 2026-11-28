@@ -186,7 +186,8 @@ internal class ChromeClient(
 
             override fun onPageStarted(w: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 if (placed) {
-                    activity.onPopupAddress(url)
+                    // A blocked window kept aside in case the user opens it goes nowhere meanwhile
+                    if (w.parent == null) w.stopLoading() else activity.onPopupAddress(url)
                     return
                 }
                 // window.open() with no address starts blank; wait for where it goes
@@ -200,9 +201,10 @@ internal class ChromeClient(
                 }
                 when (Popups.place(opener, url, tappedLink, popupsBlockedOn(opener))) {
                     // A tap anywhere that opens another site: a pop-up ad
+                    // Kept, stopped, so "Open" can still show it connected to its page
                     Popups.Place.BLOCK -> {
-                        drop(w)
-                        activity.onPopupBlocked(url)
+                        w.stopLoading()
+                        activity.onPopupBlocked(url, w)
                     }
                     Popups.Place.NEW_TAB -> {
                         drop(w)

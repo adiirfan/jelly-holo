@@ -564,6 +564,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
     override fun onDestroy() {
         closePopup()
+        dropHeldPopup()
         if (incognito && backgroundShortcutId == null && ::webView.isInitialized) {
             // Pages this private tab saw leave the cache with it
             if (!isChangingConfigurations) webView.clearCache(true)
@@ -783,11 +784,39 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         popupBox?.findViewById<TextView>(R.id.popupTitle)?.text = Uri.parse(url).host ?: url
     }
 
-    override fun onPopupBlocked(url: String) {
+    /** A blocked window, kept while the "Open" offer shows so it can still answer its page. */
+    private var heldPopup: WebView? = null
+
+    override fun onPopupBlocked(url: String, window: WebView) {
+        dropHeldPopup()
+        heldPopup = window
         val host = Uri.parse(url).host ?: url
         Snackbar.make(constraintLayout, getString(R.string.popup_blocked, host), Snackbar.LENGTH_LONG)
-            .setAction(R.string.popup_open) { openInNewTab(this, url, incognito) }
+            .setAction(R.string.popup_open) {
+                if (heldPopup === window) {
+                    // Over its page, like any sign-in window, so it can hand the sign-in back
+                    heldPopup = null
+                    showPopup(window)
+                    window.loadUrl(url)
+                    onPopupAddress(url)
+                } else {
+                    openInNewTab(this, url, incognito)
+                }
+            }
+            .addCallback(object : Snackbar.Callback() {
+                override fun onDismissed(bar: Snackbar, event: Int) {
+                    if (event != DISMISS_EVENT_ACTION && heldPopup === window) dropHeldPopup()
+                }
+            })
             .show()
+    }
+
+    private fun dropHeldPopup() {
+        heldPopup?.let {
+            it.stopLoading()
+            it.destroy()
+        }
+        heldPopup = null
     }
 
     override fun onJumpStopped(url: String, newTab: Boolean) {
