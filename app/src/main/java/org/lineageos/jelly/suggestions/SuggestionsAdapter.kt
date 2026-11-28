@@ -24,9 +24,9 @@ import java.util.Locale
 
 class SuggestionsAdapter(context: Context) : BaseAdapter(), Filterable {
     private val inflater = LayoutInflater.from(context)
-    private var items = listOf<SuggestItem>()
+    private val list = Suggestions()
+    private val items get() = list.items
     private val filter = ItemFilter()
-    private var queryText: String? = null
 
     var suggestionProvider: SuggestionProvider? = null
 
@@ -44,7 +44,7 @@ class SuggestionsAdapter(context: Context) : BaseAdapter(), Filterable {
         val title = layout.findViewById<TextView>(R.id.suggest_title)
         val url = layout.findViewById<TextView>(R.id.suggest_url)
         url.isVisible = suggestion.url != null
-        queryText?.also { query ->
+        list.query?.also { query ->
             title.text = getSpannable(query, suggestion.title)
             url.text = getSpannable(query, suggestion.url ?: "")
         } ?: run {
@@ -73,21 +73,44 @@ class SuggestionsAdapter(context: Context) : BaseAdapter(), Filterable {
     override fun getFilter(): Filter = filter
 
     private inner class ItemFilter : Filter() {
+        // Runs in the background: only looks up, the list on screen changes in publishResults
         override fun performFiltering(constraint: CharSequence?): FilterResults {
-            val filterResults = FilterResults()
-            constraint?.takeUnless { it.isBlank() }?.let {
-                val query = it.toString().lowercase(Locale.getDefault()).trim()
-                val results = suggestionProvider?.fetchResults(query) ?: listOf()
-                filterResults.count = results.size
-                filterResults.values = results
-                queryText = query
-                items = results
+            val provider = suggestionProvider
+            val found = list.lookUp(constraint) { provider?.fetchResults(it) ?: emptyList() }
+            return FilterResults().apply {
+                values = found
+                count = found.items.size
             }
-            return filterResults
         }
 
         override fun publishResults(constraint: CharSequence?, results: FilterResults) {
+            (results.values as? Suggestions.Found)?.let(list::show)
             notifyDataSetChanged()
         }
+    }
+}
+
+/**
+ * The suggestions the list shows. [lookUp] runs in the background and changes nothing;
+ * [show] puts its answer on screen, on the main thread. Changing the list from the
+ * background while it was drawing crashed the browser when typing fast.
+ */
+internal class Suggestions {
+    class Found(val query: String?, val items: List<SuggestItem>)
+
+    var items: List<SuggestItem> = emptyList()
+        private set
+    var query: String? = null
+        private set
+
+    fun lookUp(typed: CharSequence?, fetch: (String) -> List<SuggestItem>): Found {
+        if (typed.isNullOrBlank()) return Found(null, emptyList())
+        val query = typed.toString().lowercase(Locale.getDefault()).trim()
+        return Found(query, fetch(query))
+    }
+
+    fun show(found: Found) {
+        items = found.items
+        query = found.query
     }
 }
