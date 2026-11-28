@@ -52,6 +52,15 @@ abstract class WebViewExtActivity : AppCompatActivity() {
     /** A page tried to open another site in a new tab without a link being tapped. */
     open fun onPopupBlocked(url: String) {}
 
+    /** Shows a window a page opened over that page, still connected to it. */
+    open fun showPopup(window: android.webkit.WebView) {}
+
+    /** The page closed its window (or [window] is null: close whichever is open). */
+    open fun closePopup(window: android.webkit.WebView? = null) {}
+
+    /** The window over the page moved to [url]. */
+    open fun onPopupAddress(url: String) {}
+
     /** The page reported on the video being watched. */
     open fun onVideoState(state: org.lineageos.jelly.video.VideoState) {}
 

@@ -5,6 +5,7 @@
 
 package org.lineageos.jelly.webview
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -55,5 +56,35 @@ class PopupsTest {
     fun blank_and_unknown_openers_do_not_crash_and_stay_closed() {
         assertFalse(Popups.allow(null, "https://ads.popnet.example/", tappedLink = null))
         assertFalse(Popups.allow(page, "not a url", tappedLink = null))
+    }
+
+    @Test
+    fun a_tapped_link_that_opens_a_new_tab_gets_a_tab() {
+        assertEquals(
+            Popups.Place.NEW_TAB,
+            Popups.place(page, "https://other-site.org/story", tappedLink = "https://other-site.org/story", blocking = true),
+        )
+    }
+
+    @Test
+    fun a_window_a_script_opens_stays_on_top_of_its_page_so_it_can_answer_it() {
+        // "Sign in with Google": the window hands the sign-in back to the page that opened it
+        assertEquals(
+            Popups.Place.ON_TOP,
+            Popups.place("https://www.reddit.com/login", "https://accounts.google.com/gsi/select?x=1", tappedLink = null, blocking = true),
+        )
+        assertEquals(Popups.Place.ON_TOP, Popups.place(page, "https://example-news.com/share", tappedLink = null, blocking = true))
+    }
+
+    @Test
+    fun a_pop_up_ad_is_blocked_unless_blocking_is_off() {
+        assertEquals(Popups.Place.BLOCK, Popups.place(page, "https://ads.popnet.example/", tappedLink = null, blocking = true))
+        assertEquals(Popups.Place.ON_TOP, Popups.place(page, "https://ads.popnet.example/", tappedLink = null, blocking = false))
+    }
+
+    @Test
+    fun a_window_on_the_pages_own_address_opens_even_without_a_dot_in_the_name() {
+        assertTrue(Popups.allow("http://localhost:8765/site.html", "http://localhost:8765/signin.html", tappedLink = null))
+        assertTrue(Popups.allow("http://router/admin", "http://router/help", tappedLink = null))
     }
 }

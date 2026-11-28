@@ -493,6 +493,9 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
                     videoStretched -> unstretchVideo()
 
+                    // A window over the page: back through it, then close it
+                    popup != null -> popup?.let { if (it.canGoBack()) it.goBack() else closePopup() }
+
                     customView != null -> {
                         onHideCustomView()
                     }
@@ -560,6 +563,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     override fun onDestroy() {
+        closePopup()
         if (incognito && backgroundShortcutId == null && ::webView.isInitialized) {
             // Pages this private tab saw leave the cache with it
             if (!isChangingConfigurations) webView.clearCache(true)
@@ -737,6 +741,46 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
     override fun onElementPicked(label: String) {
         if (picking) showPicked(label)
+    }
+
+    /** A window the page opened, shown over it (see [showPopup]). */
+    private var popup: WebView? = null
+    private var popupBox: View? = null
+
+    override fun showPopup(window: WebView) {
+        closePopup()
+        val box = layoutInflater.inflate(R.layout.view_popup_window, constraintLayout, false)
+        box.findViewById<android.widget.FrameLayout>(R.id.popupContent).addView(
+            window,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+        box.findViewById<View>(R.id.popupClose).setOnClickListener { closePopup() }
+        box.layoutParams = ConstraintLayout.LayoutParams(0, 0).apply {
+            startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            topToBottom = R.id.appBarLayout
+            bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        }
+        constraintLayout.addView(box)
+        popup = window
+        popupBox = box
+        window.requestFocus()
+    }
+
+    override fun closePopup(window: WebView?) {
+        val open = popup ?: return
+        if (window != null && window !== open) return
+        popup = null
+        // Hand focus back to the page first, or it lands on the address bar and opens the keyboard
+        if (::webView.isInitialized) webView.requestFocus()
+        popupBox?.let { constraintLayout.removeView(it) }
+        popupBox = null
+        (open.parent as? ViewGroup)?.removeView(open)
+        open.destroy()
+    }
+
+    override fun onPopupAddress(url: String) {
+        popupBox?.findViewById<TextView>(R.id.popupTitle)?.text = Uri.parse(url).host ?: url
     }
 
     override fun onPopupBlocked(url: String) {

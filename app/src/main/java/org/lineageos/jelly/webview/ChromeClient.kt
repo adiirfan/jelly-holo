@@ -139,6 +139,12 @@ internal class ChromeClient(
         activity.onHideCustomView()
     }
 
+    /** Stops and destroys a window that won't be shown (after its first page call returns). */
+    private fun drop(w: WebView) {
+        w.stopLoading()
+        Handler(Looper.getMainLooper()).post { w.destroy() }
+    }
+
     /** Pop-ups are stopped with ad blocking, except on sites the user allowed. */
     private fun popupsBlockedOn(opener: String?): Boolean {
         if (!sharedPreferencesExt.adBlockEnabled) return false
@@ -155,7 +161,14 @@ internal class ChromeClient(
         }
 
         val transport = WebView.WebViewTransport::class.cast(resultMsg.obj)
-        val tempWebView = WebView(view.context)
+        val window = WebView(view.context)
+        // A private tab's window keeps to the private storage
+        if (incognito) PrivateProfile.join(window)
+        window.settings.apply {
+            javaScriptEnabled = view.settings.javaScriptEnabled
+            domStorageEnabled = view.settings.domStorageEnabled
+            userAgentString = view.settings.userAgentString
+        }
         val opener = view.url
         // The link that was tapped, if any: a new tab to where it points is a real one
         val hit = view.hitTestResult
@@ -168,28 +181,46 @@ internal class ChromeClient(
             view.requestFocusNodeHref(answer)
         }
 
-        tempWebView.webViewClient = object : WebViewClient() {
-            private var done = false
+        window.webViewClient = object : WebViewClient() {
+            private var placed = false
 
-            override fun onLoadResource(view: WebView, url: String) {
-                if (done) return
-                done = true
-                tempWebView.destroy()
+            override fun onPageStarted(w: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                if (placed) {
+                    activity.onPopupAddress(url)
+                    return
+                }
+                // window.open() with no address starts blank; wait for where it goes
+                if (url == "about:blank") return
+                placed = true
                 // New tabs that pages open on ad networks ("pop-unders")
                 if (AdBlock.stopsJump(sharedPreferencesExt, url, opener)) {
+                    drop(w)
                     activity.onJumpStopped(url, newTab = true)
                     return
                 }
-                // A tap anywhere that opens another site in a new tab: a pop-up ad
-                if (popupsBlockedOn(opener) && !Popups.allow(opener, url, tappedLink)) {
-                    activity.onPopupBlocked(url)
-                    return
+                when (Popups.place(opener, url, tappedLink, popupsBlockedOn(opener))) {
+                    // A tap anywhere that opens another site: a pop-up ad
+                    Popups.Place.BLOCK -> {
+                        drop(w)
+                        activity.onPopupBlocked(url)
+                    }
+                    Popups.Place.NEW_TAB -> {
+                        drop(w)
+                        openInNewTab(activity, url, incognito)
+                    }
+                    // Kept connected to its page, so "Sign in with …" can hand the sign-in back
+                    Popups.Place.ON_TOP -> {
+                        activity.showPopup(w)
+                        activity.onPopupAddress(url)
+                    }
                 }
-                openInNewTab(activity, url, incognito)
             }
         }
+        window.webChromeClient = object : WebChromeClient() {
+            override fun onCloseWindow(w: WebView) = activity.closePopup(w)
+        }
 
-        transport.webView = tempWebView
+        transport.webView = window
         resultMsg.sendToTarget()
         return true
     }

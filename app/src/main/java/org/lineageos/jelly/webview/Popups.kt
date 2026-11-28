@@ -27,6 +27,26 @@ object Popups {
         "api.twitter.com",
     )
 
+    /** Where a new window goes. */
+    enum class Place {
+        /** A pop-up ad: not opened. */
+        BLOCK,
+
+        /** A link the user tapped that opens a new tab. */
+        NEW_TAB,
+
+        /** A window a script opened: shown over its page and connected to it, so it can answer it. */
+        ON_TOP,
+    }
+
+    fun place(opener: String?, target: String, tappedLink: String?, blocking: Boolean): Place {
+        if (blocking && !allow(opener, target, tappedLink)) return Place.BLOCK
+        val link = tappedLink?.let(::host)
+        val to = host(target)
+        if (link != null && to != null && sameSite(link, to)) return Place.NEW_TAB
+        return Place.ON_TOP
+    }
+
     fun allow(opener: String?, target: String, tappedLink: String?): Boolean {
         val to = host(target) ?: return false
         if (SIGN_IN_HOSTS.any { to == it || to == "www.$it" }) return true
@@ -37,7 +57,7 @@ object Popups {
     }
 
     private fun host(url: String): String? =
-        runCatching { URI(url.trim()).host?.lowercase()?.removePrefix("www.") }.getOrNull()?.takeIf { it.contains('.') }
+        runCatching { URI(url.trim()).host?.lowercase()?.removePrefix("www.") }.getOrNull()?.takeIf { it.isNotEmpty() }
 
     /** Same site, roughly: the last two parts of the name match (three for names like example.co.uk). */
     private fun sameSite(a: String, b: String): Boolean = site(a) == site(b)

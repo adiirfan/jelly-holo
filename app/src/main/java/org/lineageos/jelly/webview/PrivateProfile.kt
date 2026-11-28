@@ -46,6 +46,13 @@ object PrivateProfile {
         open++
     }
 
+    /** A window a private tab's page opened shares that tab's private storage. Call before it loads. */
+    fun join(webView: WebView) {
+        if (!supported) return
+        ProfileStore.getInstance().getOrCreateProfile(NAME)
+        WebViewCompat.setProfile(webView, NAME)
+    }
+
     /**
      * A private tab closed (its page already destroyed): wipe when it was the last, unless
      * [reopening] (the tab is only being rebuilt, e.g. for a theme change).
